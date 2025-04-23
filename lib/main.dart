@@ -1,12 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:isar/isar.dart';
+import 'package:path_provider/path_provider.dart';
+import 'models/subscription.dart'; // Import the new model
+
+// Provider to hold the Isar instance
+// We use late final because it will be initialized in main() before runApp()
+late final Provider<Isar> isarProvider;
 
 // We make main async to allow for initialization steps (like Isar)
 Future<void> main() async {
   // Ensure Flutter bindings are initialized (needed for async main)
   WidgetsFlutterBinding.ensureInitialized();
 
-  // TODO: Initialize Isar database here later
+  // --- Isar Initialization ---
+  final dir = await getApplicationDocumentsDirectory();
+  final isar = await Isar.open(
+    [SubscriptionSchema], // Add your schema here
+    directory: dir.path,
+    name: 'subscriptionDb', // Optional: name the database instance
+  );
+  // --- End Isar Initialization ---
+
+  // Assign the initialized Isar instance to the provider
+  isarProvider = Provider<Isar>((ref) => isar);
 
   // Wrap the entire app in a ProviderScope for Riverpod
   runApp(const ProviderScope(child: MyApp()));
