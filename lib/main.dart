@@ -43,7 +43,7 @@ class MyApp extends ConsumerWidget { // Changed to ConsumerWidget for Riverpod
 
   // This widget is the root of your application.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) { // Add WidgetRef ref here
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
