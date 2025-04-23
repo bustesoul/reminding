@@ -1,8 +1,13 @@
+// ignore_for_file: depend_on_referenced_packages // Required for intl setup
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
-import 'models/subscription.dart'; // Import the new model
+import 'package:intl/date_symbol_data_local.dart'; // Import for date formatting initialization
+
+import 'models/subscription.dart';
+import 'screens/home_screen.dart'; // Import the new home screen
 
 // Provider to hold the Isar instance
 // We use late final because it will be initialized in main() before runApp()
@@ -10,8 +15,12 @@ late final Provider<Isar> isarProvider;
 
 // We make main async to allow for initialization steps (like Isar)
 Future<void> main() async {
-  // Ensure Flutter bindings are initialized (needed for async main)
+  // Ensure Flutter bindings are initialized (needed for async main and path_provider)
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize date formatting for the default locale
+  // Must be called before `runApp` or any date formatting.
+  await initializeDateFormatting();
 
   // --- Isar Initialization ---
   final dir = await getApplicationDocumentsDirectory();
@@ -54,14 +63,9 @@ class MyApp extends ConsumerWidget { // Changed to ConsumerWidget for Riverpod
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true, // Recommended for modern Flutter UI
+        useMaterial3: true,
       ),
-      // TODO: Replace this with the actual home screen later
-      home: const Scaffold(
-        body: Center(
-          child: Text('Subscription Manager'),
-        ),
-      ),
+      home: const HomeScreen(), // Use the new HomeScreen
     );
   }
 }
