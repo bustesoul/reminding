@@ -44,3 +44,70 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 .aider*
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The Flutter SDK installation directory
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+
+# Build artifacts
+build/
+.dart_tool/
+
+# Android related
+android/app/src/main/assets/flutter_assets/
+android/.gradle
+android/key.properties
+android/local.properties
+
+# iOS related
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/GeneratedPluginRegistrant.*
+ios/Runner/GeneratedPluginRegistrant.*
+ios/Runner.xcodeproj/project.xcworkspace/
+ios/Runner.xcodeproj/xcuserdata/
+ios/Pods/
+ios/.symlinks/
+ios/DerivedData/
+
+# macOS related
+macos/Flutter/ephemeral/
+macos/Pods/
+macos/.symlinks/
+macos/DerivedData/
+
+# Linux related
+linux/flutter/ephemeral/
+
+# Windows related
+windows/flutter/ephemeral/
+
+# Generated plugin registrant
+lib/generated_plugin_registrant.dart
+
+# Web related
+web/flutter_bootstrap.js
+
+# VS Code related
+.vscode/
