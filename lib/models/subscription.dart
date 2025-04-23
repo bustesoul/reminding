@@ -55,6 +55,7 @@ class Subscription {
   // --- Helper Methods ---
 
   // Helper to get custom data as a Map
+  @ignore // Tell Isar to ignore this getter
   Map<String, dynamic>? get customDataMap {
     if (customFields == null || customFields!.isEmpty) {
       return null;
