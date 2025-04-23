@@ -1,7 +1,20 @@
+import 'dart:collection'; // For LinkedHashMap used in event loader
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart'; // For date formatting
+
+import 'package:reminding/models/subscription.dart';
+import 'package:reminding/providers/subscription_providers.dart';
+import 'package:reminding/widgets/subscription_list_item.dart';
+import 'add_edit_subscription_screen.dart'; // Import the new screen
+
+// Helper function to get events for a specific day from the list of all events
+List<Subscription> _getEventsForDay(DateTime day, List<Subscription>? allEvents) {
+  if (allEvents == null) return [];
+  return allEvents.where((event) => isSameDay(event.renewalDate, day)).toList();
+}
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -21,20 +34,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _selectedDay = _focusedDay;
   }
 
+  // Using LinkedHashMap is important for TableCalendar's event loader
+  final LinkedHashMap<DateTime, List<Subscription>> _eventsMap = LinkedHashMap(
+    equals: isSameDay,
+    hashCode: (key) => key.day * 1000000 + key.month * 10000 + key.year,
+  );
+
   @override
   Widget build(BuildContext context) {
+    // Watch the events provider for the current focused month
+    final eventsAsyncValue = ref.watch(subscriptionEventsProvider(_focusedDay));
+
+    // Populate the events map when data is available
+    eventsAsyncValue.whenData((events) {
+      _eventsMap.clear();
+      for (final event in events) {
+        final day = DateTime.utc(event.renewalDate.year, event.renewalDate.month, event.renewalDate.day);
+        final existingEvents = _eventsMap[day] ?? [];
+        existingEvents.add(event);
+        _eventsMap[day] = existingEvents;
+      }
+    });
+
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Subscription Calendar'),
-        // TODO: Add button to navigate to subscription list/add screen
+        // TODO: Add button to navigate to a full subscription list/management screen
       ),
       body: Column(
         children: [
-          TableCalendar(
+          TableCalendar<Subscription>( // Specify the event type
             firstDay: DateTime.utc(2010, 10, 16), // Example start date
             lastDay: DateTime.utc(2030, 3, 14), // Example end date
             focusedDay: _focusedDay,
             calendarFormat: _calendarFormat,
+            eventLoader: (day) => _getEventsForDay(day, eventsAsyncValue.value), // Use helper
             selectedDayPredicate: (day) {
               // Use `selectedDayPredicate` to determine which day is currently selected.
               // If this returns true, then `day` will be marked as selected.
@@ -77,30 +112,101 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               titleCentered: true,
               titleTextFormatter: (date, locale) => DateFormat.yMMMM(locale).format(date),
             ),
-            // TODO: Add event loader to mark days with renewals
+             calendarBuilders: CalendarBuilders( // Add builders for customization
+              markerBuilder: (context, day, events) { // Custom marker for events
+                if (events.isNotEmpty) {
+                  return Positioned(
+                    right: 1,
+                    bottom: 1,
+                    child: _buildEventsMarker(day, events),
+                  );
+                }
+                return null;
+              },
+            ),
           ),
           const SizedBox(height: 8.0),
           Expanded(
-            child: _buildSubscriptionList(),
+            child: _buildSubscriptionListForSelectedDay(), // Renamed method
           ),
         ],
       ),
-      // TODO: Add FloatingActionButton to add new subscriptions
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AddEditSubscriptionScreen()),
+          );
+        },
+        child: const Icon(Icons.add),
+        tooltip: 'Add Subscription',
+      ),
     );
   }
 
-  Widget _buildSubscriptionList() {
-    // TODO: Fetch and display subscriptions for _selectedDay using Riverpod
+  // Widget to build the small marker indicating events on a day
+  Widget _buildEventsMarker(DateTime day, List<Subscription> events) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.deepPurple[400],
+      ),
+      width: 16.0,
+      height: 16.0,
+      child: Center(
+        child: Text(
+          '${events.length}',
+          style: const TextStyle().copyWith(
+            color: Colors.white,
+            fontSize: 12.0,
+          ),
+        ),
+      ),
+    );
+  }
+
+
+  // Build the list of subscriptions for the currently selected day
+  Widget _buildSubscriptionListForSelectedDay() {
     if (_selectedDay == null) {
       return const Center(child: Text('Select a day'));
     }
-    // Placeholder for subscription list
-    return Center(
-      child: Text(
-        'Subscriptions for ${DateFormat.yMd().format(_selectedDay!)}',
-        style: Theme.of(context).textTheme.headlineSmall,
-      ),
+
+    // Watch the provider for the selected day's subscriptions
+    final subscriptionsAsyncValue = ref.watch(subscriptionsForDayProvider(_selectedDay!));
+
+    return subscriptionsAsyncValue.when(
+      data: (subscriptions) {
+        if (subscriptions.isEmpty) {
+          return Center(
+            child: Text(
+              'No subscriptions renewing on ${DateFormat.yMd().format(_selectedDay!)}',
+            ),
+          );
+        }
+        return ListView.builder(
+          itemCount: subscriptions.length,
+          itemBuilder: (context, index) {
+            final subscription = subscriptions[index];
+            return SubscriptionListItem(
+              subscription: subscription,
+              onTap: () {
+                // Navigate to edit screen, passing the subscription
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddEditSubscriptionScreen(subscription: subscription),
+                  ),
+                );
+              },
+              // TODO: Add delete functionality (e.g., via Slidable or long-press menu)
+            );
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(child: Text('Error loading subscriptions: $error')),
     );
-    // Replace with actual list view later
   }
 }
