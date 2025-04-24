@@ -4,6 +4,9 @@ import 'package:uuid/uuid.dart';
 
 part 'subscription.g.dart'; // Isar will generate this file
 
+// Enum to represent the billing cycle
+enum BillingCycle { oneTime, monthly, yearly }
+
 @collection
 class Subscription {
   // Isar's auto-incrementing ID
@@ -18,7 +21,13 @@ class Subscription {
 
   // Framework Fields
   @Index() // Index for querying by renewal date
-  late DateTime renewalDate;
+  late DateTime renewalDate; // Represents the *next* renewal date
+
+  @enumerated // Store enum by index for efficiency
+  late BillingCycle billingCycle; // Billing frequency
+
+  int? billingDayOfMonth; // Day of the month for monthly/yearly cycles (1-31)
+  int? billingMonthOfYear; // Month of the year for yearly cycles (1-12)
 
   int? reminderDays; // Days before renewal to remind
 
@@ -43,10 +52,25 @@ class Subscription {
     this.rating,
     this.price,
     this.reminderDays,
+    this.billingCycle = BillingCycle.oneTime, // Default to oneTime
+    this.billingDayOfMonth,
+    this.billingMonthOfYear,
     Map<String, dynamic>? customData,
   }) {
+    // Basic validation for billing cycle details
+    if (billingCycle == BillingCycle.monthly && billingDayOfMonth == null) {
+      throw ArgumentError('billingDayOfMonth is required for monthly billing cycle.');
+    }
+    if (billingCycle == BillingCycle.yearly && (billingDayOfMonth == null || billingMonthOfYear == null)) {
+      throw ArgumentError('billingDayOfMonth and billingMonthOfYear are required for yearly billing cycle.');
+    }
+    // TODO: Add more robust validation (e.g., day range 1-31, month range 1-12)
+
     uuid = const Uuid().v4(); // Generate a unique ID
     createdAt = DateTime.now();
+    // Note: The initial calculation of the *first* renewalDate based on the cycle
+    // might happen here or when saving the object, depending on your logic.
+    // For now, the required renewalDate parameter sets the initial next renewal.
     if (customData != null) {
       customFields = jsonEncode(customData); // Encode custom data to JSON string
     }
@@ -81,6 +105,55 @@ class Subscription {
   // --- toString for debugging ---
   @override
   String toString() {
-    return 'Subscription(id: $id, uuid: $uuid, name: $name, createdAt: $createdAt, renewalDate: $renewalDate, category: $category, price: $price, rating: $rating, reminderDays: $reminderDays, customFields: $customFields)';
+    return 'Subscription(id: $id, uuid: $uuid, name: $name, createdAt: $createdAt, renewalDate: $renewalDate, billingCycle: $billingCycle, billingDayOfMonth: $billingDayOfMonth, billingMonthOfYear: $billingMonthOfYear, category: $category, price: $price, rating: $rating, reminderDays: $reminderDays, customFields: $customFields)';
+  }
+
+  // --- Helper method to calculate next renewal date (Example) ---
+  // This logic might be better placed in a service or repository
+  // depending on how you manage subscription updates.
+  DateTime calculateNextRenewalDate() {
+    if (billingCycle == BillingCycle.oneTime) {
+      // For one-time, the renewal date doesn't change automatically.
+      // Or perhaps it should throw an error if called? Depends on use case.
+      return renewalDate;
+    }
+
+    DateTime nextDate = renewalDate;
+    DateTime now = DateTime.now();
+
+    // Ensure we calculate based on the *current* renewal date, moving forward
+    // until we find a date in the future.
+    while (nextDate.isBefore(now)) {
+      if (billingCycle == BillingCycle.monthly) {
+        // Add a month. Be careful with month rollovers (e.g., Jan 31 -> Feb 28/29)
+        // Using dayOfMonth ensures we target the correct day.
+        int targetDay = billingDayOfMonth!;
+        int year = nextDate.year;
+        int month = nextDate.month + 1;
+        if (month > 12) {
+          month = 1;
+          year++;
+        }
+        // Check if the target day exists in the next month
+        int daysInNextMonth = DateTime(year, month + 1, 0).day;
+        if (targetDay > daysInNextMonth) {
+          targetDay = daysInNextMonth; // Adjust to the last day if needed
+        }
+        nextDate = DateTime(year, month, targetDay, nextDate.hour, nextDate.minute, nextDate.second);
+
+      } else if (billingCycle == BillingCycle.yearly) {
+        int targetDay = billingDayOfMonth!;
+        int targetMonth = billingMonthOfYear!;
+        int year = nextDate.year + 1; // Simply add a year first
+
+        // Check if the target day exists in the target month of the next year (for leap years)
+        int daysInTargetMonth = DateTime(year, targetMonth + 1, 0).day;
+         if (targetDay > daysInTargetMonth) {
+          targetDay = daysInTargetMonth; // Adjust to the last day if needed
+        }
+        nextDate = DateTime(year, targetMonth, targetDay, nextDate.hour, nextDate.minute, nextDate.second);
+      }
+    }
+    return nextDate;
   }
 }
