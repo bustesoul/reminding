@@ -26,8 +26,8 @@ class Subscription {
   @enumerated // Store enum by index for efficiency
   late BillingCycle billingCycle; // Billing frequency
 
-  int? billingDayOfMonth; // Day of the month for monthly/yearly cycles (1-31)
-  int? billingMonthOfYear; // Month of the year for yearly cycles (1-12)
+  // billingDayOfMonth and billingMonthOfYear are removed.
+  // The day/month for recurring cycles will be derived from the initial renewalDate.
 
   int? reminderDays; // Days before renewal to remind
 
@@ -53,18 +53,10 @@ class Subscription {
     this.price,
     this.reminderDays,
     this.billingCycle = BillingCycle.oneTime, // Default to oneTime
-    this.billingDayOfMonth,
-    this.billingMonthOfYear,
+    // billingDayOfMonth, billingMonthOfYear parameters removed
     Map<String, dynamic>? customData,
   }) {
-    // Basic validation for billing cycle details
-    if (billingCycle == BillingCycle.monthly && billingDayOfMonth == null) {
-      throw ArgumentError('billingDayOfMonth is required for monthly billing cycle.');
-    }
-    if (billingCycle == BillingCycle.yearly && (billingDayOfMonth == null || billingMonthOfYear == null)) {
-      throw ArgumentError('billingDayOfMonth and billingMonthOfYear are required for yearly billing cycle.');
-    }
-    // TODO: Add more robust validation (e.g., day range 1-31, month range 1-12)
+    // Validation for billingDayOfMonth/billingMonthOfYear removed
 
     uuid = const Uuid().v4(); // Generate a unique ID
     createdAt = DateTime.now();
@@ -105,7 +97,8 @@ class Subscription {
   // --- toString for debugging ---
   @override
   String toString() {
-    return 'Subscription(id: $id, uuid: $uuid, name: $name, createdAt: $createdAt, renewalDate: $renewalDate, billingCycle: $billingCycle, billingDayOfMonth: $billingDayOfMonth, billingMonthOfYear: $billingMonthOfYear, category: $category, price: $price, rating: $rating, reminderDays: $reminderDays, customFields: $customFields)';
+    // Removed billingDayOfMonth and billingMonthOfYear from toString
+    return 'Subscription(id: $id, uuid: $uuid, name: $name, createdAt: $createdAt, renewalDate: $renewalDate, billingCycle: $billingCycle, category: $category, price: $price, rating: $rating, reminderDays: $reminderDays, customFields: $customFields)';
   }
 
   // --- Helper method to calculate next renewal date (Example) ---
@@ -125,9 +118,8 @@ class Subscription {
     // until we find a date in the future.
     while (nextDate.isBefore(now)) {
       if (billingCycle == BillingCycle.monthly) {
-        // Add a month. Be careful with month rollovers (e.g., Jan 31 -> Feb 28/29)
-        // Using dayOfMonth ensures we target the correct day.
-        int targetDay = billingDayOfMonth!;
+        // Add a month. Derive the target day from the current renewalDate.
+        int targetDay = nextDate.day; // Use the day from the current renewal date
         int year = nextDate.year;
         int month = nextDate.month + 1;
         if (month > 12) {
@@ -142,13 +134,14 @@ class Subscription {
         nextDate = DateTime(year, month, targetDay, nextDate.hour, nextDate.minute, nextDate.second);
 
       } else if (billingCycle == BillingCycle.yearly) {
-        int targetDay = billingDayOfMonth!;
-        int targetMonth = billingMonthOfYear!;
+        // Derive target day and month from the current renewalDate
+        int targetDay = nextDate.day;
+        int targetMonth = nextDate.month;
         int year = nextDate.year + 1; // Simply add a year first
 
         // Check if the target day exists in the target month of the next year (for leap years)
         int daysInTargetMonth = DateTime(year, targetMonth + 1, 0).day;
-         if (targetDay > daysInTargetMonth) {
+        if (targetDay > daysInTargetMonth) {
           targetDay = daysInTargetMonth; // Adjust to the last day if needed
         }
         nextDate = DateTime(year, targetMonth, targetDay, nextDate.hour, nextDate.minute, nextDate.second);
