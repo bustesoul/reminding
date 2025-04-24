@@ -25,6 +25,12 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
   int? _selectedRating; // For rating stars
   int? _reminderDays; // For reminder days input
 
+  // State for billing cycle
+  BillingCycle _selectedBillingCycle = BillingCycle.oneTime; // Default
+  int? _selectedBillingDayOfMonth;
+  int? _selectedBillingMonthOfYear;
+
+
   bool get isEditing => widget.subscription != null;
 
   @override
@@ -37,9 +43,137 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
     _selectedRenewalDate = sub?.renewalDate ?? DateTime.now();
     _selectedRating = sub?.rating;
     _reminderDays = sub?.reminderDays;
+    // Initialize billing cycle fields
+    _selectedBillingCycle = sub?.billingCycle ?? BillingCycle.oneTime;
+    _selectedBillingDayOfMonth = sub?.billingDayOfMonth;
+    _selectedBillingMonthOfYear = sub?.billingMonthOfYear;
     // Initialize custom fields controller - display existing JSON or empty
     _customFieldsController = TextEditingController(text: _getPrettyJson(sub?.customFields));
-  }
+
+    // Ensure initial state consistency for billing details
+    if (_selectedBillingCycle == BillingCycle.oneTime) {
+      _selectedBillingDayOfMonth = null;
+      _selectedBillingMonthOfYear = null;
+    } else if (_selectedBillingCycle == BillingCycle.monthly) {
+      _selectedBillingMonthOfYear = null;
+    }
+
+   // --- Widgets for Billing Cycle ---
+
+   Widget _buildBillingCycleSelector() {
+     return DropdownButtonFormField<BillingCycle>(
+       value: _selectedBillingCycle,
+       decoration: const InputDecoration(labelText: 'Billing Cycle'),
+       items: BillingCycle.values.map((cycle) {
+         return DropdownMenuItem(
+           value: cycle,
+           child: Text(_billingCycleToString(cycle)), // Helper for display text
+         );
+       }).toList(),
+       onChanged: (BillingCycle? newValue) {
+         setState(() {
+           _selectedBillingCycle = newValue!;
+           // Reset dependent fields when cycle changes
+           if (_selectedBillingCycle == BillingCycle.oneTime) {
+             _selectedBillingDayOfMonth = null;
+             _selectedBillingMonthOfYear = null;
+           } else if (_selectedBillingCycle == BillingCycle.monthly) {
+             _selectedBillingMonthOfYear = null;
+             // Optionally set a default day or leave null for user selection
+             // _selectedBillingDayOfMonth = _selectedBillingDayOfMonth ?? 1;
+           } else {
+              // Optionally set defaults for yearly
+              // _selectedBillingDayOfMonth = _selectedBillingDayOfMonth ?? 1;
+              // _selectedBillingMonthOfYear = _selectedBillingMonthOfYear ?? 1;
+           }
+         });
+       },
+     );
+   }
+
+   Widget _buildBillingDetailsSelectors() {
+     // Only show day/month selectors if needed
+     if (_selectedBillingCycle == BillingCycle.oneTime) {
+       return const SizedBox.shrink(); // Return empty space
+     }
+
+     return Column(
+       crossAxisAlignment: CrossAxisAlignment.start,
+       children: [
+         // --- Day of Month Selector (for Monthly and Yearly) ---
+         if (_selectedBillingCycle == BillingCycle.monthly || _selectedBillingCycle == BillingCycle.yearly)
+           DropdownButtonFormField<int>(
+             value: _selectedBillingDayOfMonth,
+             hint: const Text('Select Billing Day'),
+             decoration: const InputDecoration(labelText: 'Day of Month'),
+             items: List.generate(31, (index) => index + 1).map((day) { // 1 to 31
+               return DropdownMenuItem(
+                 value: day,
+                 child: Text(day.toString()),
+               );
+             }).toList(),
+             onChanged: (int? newValue) {
+               setState(() {
+                 _selectedBillingDayOfMonth = newValue;
+               });
+             },
+             validator: (value) {
+               if ((_selectedBillingCycle == BillingCycle.monthly || _selectedBillingCycle == BillingCycle.yearly) && value == null) {
+                 return 'Please select a billing day';
+               }
+               // TODO: Add validation for days in month (e.g., Feb 30 is invalid) - complex, might need context of renewal date
+               return null;
+             },
+           ),
+         const SizedBox(height: 16), // Spacing
+
+         // --- Month of Year Selector (for Yearly only) ---
+         if (_selectedBillingCycle == BillingCycle.yearly)
+           DropdownButtonFormField<int>(
+             value: _selectedBillingMonthOfYear,
+             hint: const Text('Select Billing Month'),
+             decoration: const InputDecoration(labelText: 'Month of Year'),
+             items: List.generate(12, (index) => index + 1).map((month) { // 1 to 12
+               return DropdownMenuItem(
+                 value: month,
+                 child: Text(DateFormat('MMMM').format(DateTime(0, month))), // Display month name
+               );
+             }).toList(),
+             onChanged: (int? newValue) {
+               setState(() {
+                 _selectedBillingMonthOfYear = newValue;
+               });
+             },
+             validator: (value) {
+               if (_selectedBillingCycle == BillingCycle.yearly && value == null) {
+                 return 'Please select a billing month';
+               }
+               return null;
+             },
+           ),
+          if (_selectedBillingCycle == BillingCycle.yearly) const SizedBox(height: 16), // Spacing if month is shown
+       ],
+     );
+   }
+
+   // Helper to get display string for BillingCycle enum
+   String _billingCycleToString(BillingCycle cycle) {
+     switch (cycle) {
+       case BillingCycle.oneTime:
+         return 'One Time';
+       case BillingCycle.monthly:
+         return 'Monthly';
+       case BillingCycle.yearly:
+         return 'Yearly';
+       default:
+         return '';
+     }
+   }
+
+   // --- End Widgets for Billing Cycle ---
+
+
+   void _saveForm() async {
 
   // Helper to format JSON nicely for editing
   String _getPrettyJson(String? jsonString) {
@@ -93,9 +227,13 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
                 },
               ),
               const SizedBox(height: 16),
-              _buildDatePicker(),
+              _buildBillingCycleSelector(), // Add Billing Cycle Selector
               const SizedBox(height: 16),
-              TextFormField(
+              _buildBillingDetailsSelectors(), // Add Day/Month Selectors (conditional)
+              const SizedBox(height: 16),
+              _buildDatePicker(), // Keep Renewal Date Picker
+              const SizedBox(height: 16),
+              TextFormField( // Keep Price
                 controller: _priceController,
                 decoration: const InputDecoration(labelText: 'Price (Optional)', prefixText: '\$'),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -207,15 +345,22 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
       }
 
 
+      // --- Create or Update Subscription ---
       final subscriptionToSave = Subscription(
         name: _nameController.text,
-        renewalDate: _selectedRenewalDate!,
+        renewalDate: _selectedRenewalDate!, // Ensure this is validated above
+        billingCycle: _selectedBillingCycle,
+        billingDayOfMonth: _selectedBillingDayOfMonth,
+        billingMonthOfYear: _selectedBillingMonthOfYear,
         price: price,
         category: category,
         rating: _selectedRating,
         reminderDays: _reminderDays,
-        // Directly use the text from the controller, assuming it's valid JSON or null
-      )..customFields = customFields;
+        // Custom fields are handled separately below
+      );
+
+      // Set custom fields directly on the object
+      subscriptionToSave.customFields = customFields;
 
 
       // If editing, preserve the original ID and UUID, createdAt
