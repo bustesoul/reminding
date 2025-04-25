@@ -16,20 +16,49 @@ class SubscriptionListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: CircleAvatar( // Simple leading icon/indicator
-        child: Text(subscription.name.substring(0, 1).toUpperCase()), // First letter
+    // Use a Card for better visual separation in lists
+    return Card(
+      elevation: 1.5,
+      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0), // Add horizontal margin too
+      child: ListTile(
+        leading: CircleAvatar( // Keep the avatar
+          // Optional: Add background color based on category or other property?
+          // backgroundColor: Colors.deepPurple.shade100,
+          child: Text(
+            subscription.name.isNotEmpty ? subscription.name.substring(0, 1).toUpperCase() : '?',
+            // style: TextStyle(color: Colors.deepPurple.shade800),
+          ),
+        ),
+        title: Text(subscription.name, style: Theme.of(context).textTheme.titleMedium),
+        subtitle: Text(
+          // Display price more prominently if available
+          subscription.price != null
+              ? '\$${subscription.price!.toStringAsFixed(2)} / ${_billingCycleShortString(subscription.billingCycle)}'
+              : _billingCycleShortString(subscription.billingCycle), // Just show cycle if no price
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        // Display the specific occurrence date clearly
+        trailing: Text(
+          DateFormat.Md().format(occurrenceDate), // Short date format (e.g., 4/25)
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
+        ),
+        onTap: onTap,
+        // TODO: Implement Slidable for actions
       ),
-      title: Text(subscription.name),
-      subtitle: Text(
-        // Use the occurrenceDate for display
-        'Date: ${DateFormat.yMd().format(occurrenceDate)}'
-        '${subscription.price != null ? ' - \$${subscription.price!.toStringAsFixed(2)}' : ''}' // Show price if available
-        // Optionally add cycle info: ' (${subscription.billingCycle.name})'
-      ),
-      trailing: const Icon(Icons.chevron_right), // Indicate tappable
-      onTap: onTap,
-      // TODO: Add options for edit/delete on long press or swipe
     );
+  }
+
+  // Helper for short billing cycle string
+  String _billingCycleShortString(BillingCycle cycle) {
+    switch (cycle) {
+      case BillingCycle.oneTime: return 'one time';
+      case BillingCycle.monthly: return 'mo';
+      case BillingCycle.quarterly: return 'qtr';
+      case BillingCycle.semiAnnually: return '6mo';
+      case BillingCycle.yearly: return 'yr';
+      case BillingCycle.everyTwoYears: return '2yr';
+      case BillingCycle.everyThreeYears: return '3yr';
+      default: return cycle.name;
+    }
   }
 }

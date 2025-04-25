@@ -59,10 +59,17 @@ class MyApp extends ConsumerWidget { // Changed to ConsumerWidget for Riverpod
         //
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.deepPurple,
+          brightness: Brightness.light, // Or Brightness.dark
+        ),
+        appBarTheme: const AppBarTheme(
+          centerTitle: true, // Center align AppBar titles
+          elevation: 2, // Add subtle elevation
+        ),
         useMaterial3: true,
       ),
-      home: const HomeScreen(), // Use the new HomeScreen
+      home: const HomeScreen(),
     );
   }
 }
