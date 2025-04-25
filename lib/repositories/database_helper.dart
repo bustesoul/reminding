@@ -58,7 +58,6 @@ class DatabaseHelper {
             $columnName TEXT NOT NULL,
             $columnCreatedAt TEXT NOT NULL,
             $columnStartDate TEXT NOT NULL, // Changed to NOT NULL in v3
-            // $columnRenewalDate TEXT NOT NULL, // Removed in v3
             $columnBillingCycle TEXT NOT NULL,
             $columnRenewalAnchorDay INTEGER, // Added anchor day in v3
             $columnRenewalAnchorMonth INTEGER, // Added anchor month in v3
