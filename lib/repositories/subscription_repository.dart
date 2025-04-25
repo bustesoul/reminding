@@ -146,8 +146,8 @@ class SubscriptionRepository {
         }
       }
     }
-     // Sort occurrences by date
-    occurrences.sort((a, b) => a.renewalDate.compareTo(b.renewalDate));
+     // Sort occurrences by the occurrence date (the DateTime part of the tuple)
+    occurrences.sort((a, b) => a.$2.compareTo(b.$2));
     return occurrences;
   }
 
