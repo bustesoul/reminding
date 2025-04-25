@@ -48,27 +48,28 @@ class SubscriptionRepository {
         DateTime currentRenewal = sub.renewalDate;
         DateTime effectiveStartDate = sub.startDate ?? sub.createdAt; // Use start date or creation date
 
-        // Adjust initial check date based on start date
-        while (currentRenewal.isBefore(effectiveStartDate)) {
-           currentRenewal = _calculateNextBillDate(currentRenewal, sub.billingCycle);
-        }
+        // Determine the anchor date for recurrence calculation
+        final anchorDate = effectiveStartDate;
+
+        // Start generating occurrences from the anchor date
+        DateTime currentOccurrence = anchorDate;
 
         // Generate renewals and check if they fall on the target day
         // Limit iterations to prevent infinite loops in edge cases (e.g., 100 years)
         int iterations = 0;
         final maxIterations = 12 * 100; // Max 100 years of iterations
 
-        // Find the first renewal date >= effectiveStartDate
-        while (currentRenewal.isBefore(effectiveStartDate) && iterations < maxIterations) {
-          currentRenewal = _calculateNextBillDate(currentRenewal, sub.billingCycle);
-          iterations++;
-        }
+        // Loop forwards from the anchor date
+        while (iterations < maxIterations) {
+           final currentOccurrenceUtc = DateTime.utc(currentOccurrence.year, currentOccurrence.month, currentOccurrence.day);
 
-        // Now check if this or future renewals match the target day
-        iterations = 0; // Reset iteration count for the main loop
-        while (currentRenewal.isBefore(day.add(const Duration(days: 1))) && iterations < maxIterations) {
-           final currentRenewalDayUtc = DateTime.utc(currentRenewal.year, currentRenewal.month, currentRenewal.day);
-           if (currentRenewalDayUtc.isAtSameMomentAs(dayUtc)) {
+           // Stop if the current occurrence is already past the target day
+           if (currentOccurrenceUtc.isAfter(dayUtc)) {
+              break;
+           }
+
+           // Check if the current occurrence matches the target day
+           if (currentOccurrenceUtc.isAtSameMomentAs(dayUtc)) {
              // Add the original subscription and the specific occurrence date as a tuple
              occurrences.add((sub, currentRenewal));
              break; // Found occurrence for this day, no need to check further for this sub
