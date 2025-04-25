@@ -54,11 +54,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Watch the events provider for the current focused month
-    final eventsAsyncValue = ref.watch(subscriptionEventsProvider(_focusedDay));
+    // Removed redundant watch for eventsAsyncValue here.
+    // It's watched inside _buildCalendarView where it's needed.
 
     // Populate the events map when data (list of tuples) is available
-    eventsAsyncValue.whenData((eventTuples) {
+    // NOTE: This population logic remains here as _eventsMap is used by TableCalendar's eventLoader,
+    // and the provider needs to be watched somewhere to trigger the population.
+    // Watching it here ensures the map is updated even if _buildCalendarView isn't called immediately.
+    ref.watch(subscriptionEventsProvider(_focusedDay)).whenData((eventTuples) {
       _eventsMap.clear();
       for (final tuple in eventTuples) {
         // final subscription = tuple.$1; // Access the subscription object
