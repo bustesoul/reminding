@@ -4,7 +4,7 @@ import 'package:path_provider/path_provider.dart';
 
 class DatabaseHelper {
   static const _databaseName = "Subscriptions.db";
-  static const _databaseVersion = 1;
+  static const _databaseVersion = 2; // <<-- Increment version
 
   static const table = 'subscriptions';
 
@@ -13,6 +13,7 @@ class DatabaseHelper {
   static const columnUuid = 'uuid';
   static const columnName = 'name';
   static const columnCreatedAt = 'createdAt'; // Store as ISO8601 String
+  static const columnStartDate = 'startDate'; // Store as ISO8601 String (Nullable)
   static const columnRenewalDate = 'renewalDate'; // Store as ISO8601 String
   static const columnBillingCycle = 'billingCycle'; // Store as String
   static const columnReminderDays = 'reminderDays'; // Store as INTEGER
@@ -42,7 +43,7 @@ class DatabaseHelper {
       path,
       version: _databaseVersion,
       onCreate: _onCreate,
-      // onUpgrade: _onUpgrade, // Add if needed for future schema migrations
+      onUpgrade: _onUpgrade, // Add migration logic
     );
   }
 
@@ -54,6 +55,7 @@ class DatabaseHelper {
             $columnUuid TEXT NOT NULL UNIQUE,
             $columnName TEXT NOT NULL,
             $columnCreatedAt TEXT NOT NULL,
+            $columnStartDate TEXT, // Added startDate column (nullable)
             $columnRenewalDate TEXT NOT NULL,
             $columnBillingCycle TEXT NOT NULL,
             $columnReminderDays INTEGER,
@@ -68,7 +70,23 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX idx_category ON $table ($columnCategory)');
     await db.execute('CREATE INDEX idx_rating ON $table ($columnRating)');
     await db.execute('CREATE INDEX idx_price ON $table ($columnPrice)');
+    await db.execute('CREATE INDEX idx_startDate ON $table ($columnStartDate)'); // Index for startDate
   }
+
+  // --- Migration Logic ---
+  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Migration from version 1 to 2: Add startDate column
+      await db.execute('ALTER TABLE $table ADD COLUMN $columnStartDate TEXT');
+      // You might want to populate existing rows with a default startDate
+      // based on createdAt or renewalDate if necessary, but NULL is often fine.
+      // Example: await db.execute('UPDATE $table SET $columnStartDate = $columnCreatedAt WHERE $columnStartDate IS NULL');
+      print("Database upgraded from version $oldVersion to $newVersion: Added $columnStartDate column.");
+    }
+    // Add more migration steps for future versions here
+    // if (oldVersion < 3) { ... }
+  }
+
 
   // --- Helper Methods for CRUD Operations (can be moved to Repository) ---
   // These are examples; the repository will likely contain the main logic.

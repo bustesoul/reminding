@@ -23,6 +23,7 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
   late TextEditingController _priceController;
   late TextEditingController _categoryController;
   late TextEditingController _customFieldsController; // For raw JSON editing initially
+  DateTime? _selectedStartDate; // Added state for start date
   DateTime? _selectedRenewalDate;
   int? _selectedRating; // For rating stars
   int? _reminderDays; // For reminder days input
@@ -40,6 +41,7 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
     _nameController = TextEditingController(text: sub?.name ?? '');
     _priceController = TextEditingController(text: sub?.price?.toString() ?? '');
     _categoryController = TextEditingController(text: sub?.category ?? '');
+    _selectedStartDate = sub?.startDate; // Initialize start date (can be null)
     _selectedRenewalDate = sub?.renewalDate ?? DateTime.now();
     _selectedRating = sub?.rating;
     _reminderDays = sub?.reminderDays;
@@ -145,7 +147,9 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
               _buildBillingCycleSelector(), // Keep Billing Cycle Selector
               const SizedBox(height: 16),
               // _buildBillingDetailsSelectors() removed from here
-              _buildDatePicker(), // Keep Renewal Date Picker (This now defines the first renewal and the recurring day/month)
+              _buildStartDatePicker(), // Add Start Date Picker
+              const SizedBox(height: 16),
+              _buildRenewalDatePicker(), // Renamed Renewal Date Picker
               const SizedBox(height: 16),
               TextFormField( // Keep Price
                 controller: _priceController,
@@ -192,48 +196,97 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
     );
   }
 
-  // Widget to build the date picker row
-  Widget _buildDatePicker() {
+  // Widget to build the START date picker row
+  Widget _buildStartDatePicker() {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            _selectedStartDate == null
+                ? 'Start Date (Optional): Not Set'
+                : 'Starts: ${DateFormat.yMd().format(_selectedStartDate!)}',
+          ),
+        ),
+        TextButton(
+          onPressed: () => _presentDatePicker(isStartDate: true),
+          child: Text(_selectedStartDate == null ? 'Set Start Date' : 'Change Start'),
+        ),
+        if (_selectedStartDate != null) // Add a clear button
+          IconButton(
+            icon: const Icon(Icons.clear, size: 18),
+            tooltip: 'Clear Start Date',
+            onPressed: () {
+              setState(() {
+                _selectedStartDate = null;
+              });
+            },
+          ),
+      ],
+    );
+  }
+
+
+  // Widget to build the RENEWAL date picker row
+  Widget _buildRenewalDatePicker() {
     return Row(
       children: [
         Expanded(
           child: Text(
             _selectedRenewalDate == null
-                ? 'No Renewal Date Set'
-                : 'Renews: ${DateFormat.yMd().format(_selectedRenewalDate!)}',
+                ? 'Next Renewal Date: Not Set' // Should always have a value before saving
+                : 'Next Renews: ${DateFormat.yMd().format(_selectedRenewalDate!)}',
           ),
         ),
         TextButton(
-          onPressed: _presentDatePicker,
-          child: const Text('Choose Date'),
+          onPressed: () => _presentDatePicker(isStartDate: false),
+          child: const Text('Choose Renewal'),
         ),
       ],
     );
   }
 
-  // Function to show the date picker dialog
-  void _presentDatePicker() async {
+  // Function to show the date picker dialog - MODIFIED to handle both dates
+  void _presentDatePicker({required bool isStartDate}) async {
     final now = DateTime.now();
-    final firstDate = DateTime(now.year - 5, now.month, now.day); // Allow past dates? Adjust as needed
+    final initialDate = isStartDate
+        ? (_selectedStartDate ?? _selectedRenewalDate ?? now)
+        : (_selectedRenewalDate ?? now);
+    // Allow setting start date in the past, renewal date maybe not? Adjust as needed.
+    final firstDate = DateTime(now.year - 10, now.month, now.day);
     final lastDate = DateTime(now.year + 20, now.month, now.day);
+
     final pickedDate = await showDatePicker(
       context: context,
-      initialDate: _selectedRenewalDate ?? now,
+      initialDate: initialDate,
       firstDate: firstDate,
       lastDate: lastDate,
     );
+
     if (pickedDate != null) {
       setState(() {
-        _selectedRenewalDate = pickedDate;
+        if (isStartDate) {
+          _selectedStartDate = pickedDate;
+          // Optional: If start date is after renewal date, maybe adjust renewal date?
+          // if (_selectedRenewalDate != null && pickedDate.isAfter(_selectedRenewalDate!)) {
+          //   _selectedRenewalDate = pickedDate;
+          // }
+        } else {
+          _selectedRenewalDate = pickedDate;
+          // Optional: If renewal date is before start date, maybe adjust start date?
+          // if (_selectedStartDate != null && pickedDate.isBefore(_selectedStartDate!)) {
+          //   _selectedStartDate = pickedDate;
+          // }
+        }
       });
     }
   }
 
 
   void _saveForm() async {
+    // Ensure renewal date is set
     if (_selectedRenewalDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a renewal date.')),
+        const SnackBar(content: Text('Please select the next renewal date.')),
        );
        return;
      }
@@ -265,6 +318,7 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
         id: isEditing ? widget.subscription!.id : null,
         uuid: isEditing ? widget.subscription!.uuid : null,
         createdAt: isEditing ? widget.subscription!.createdAt : null,
+        startDate: _selectedStartDate, // Pass the selected start date
         name: _nameController.text,
         renewalDate: _selectedRenewalDate!,
         billingCycle: _selectedBillingCycle,

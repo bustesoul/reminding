@@ -43,6 +43,7 @@ class Subscription {
     required this.billingCycle,
     String? uuid, // Allow setting UUID when reading from DB
     DateTime? createdAt, // Allow setting createdAt when reading from DB
+    this.startDate, // Allow setting startDate when reading from DB
     this.category,
     this.rating,
     this.price,
@@ -127,6 +128,9 @@ class Subscription {
       uuid: map[DatabaseHelper.columnUuid] as String,
       name: map[DatabaseHelper.columnName] as String,
       createdAt: DateTime.parse(map[DatabaseHelper.columnCreatedAt] as String), // Parse from String
+      startDate: map[DatabaseHelper.columnStartDate] != null
+          ? DateTime.parse(map[DatabaseHelper.columnStartDate] as String) // Parse nullable startDate
+          : null,
       renewalDate: DateTime.parse(map[DatabaseHelper.columnRenewalDate] as String), // Parse from String
       billingCycle: BillingCycle.values.byName(map[DatabaseHelper.columnBillingCycle] as String), // Parse enum from String
       reminderDays: map[DatabaseHelper.columnReminderDays] as int?,
@@ -140,7 +144,7 @@ class Subscription {
   // --- toString for debugging ---
   @override
   String toString() {
-    return 'Subscription(id: $id, uuid: $uuid, name: $name, createdAt: $createdAt, renewalDate: $renewalDate, billingCycle: $billingCycle, category: $category, price: $price, rating: $rating, reminderDays: $reminderDays, customFields: $customFields)';
+    return 'Subscription(id: $id, uuid: $uuid, name: $name, createdAt: $createdAt, startDate: $startDate, renewalDate: $renewalDate, billingCycle: $billingCycle, category: $category, price: $price, rating: $rating, reminderDays: $reminderDays, customFields: $customFields)';
   }
 
   // --- Helper method to calculate next renewal date (Example) ---

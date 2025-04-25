@@ -21,39 +21,173 @@ class SubscriptionRepository {
     });
   }
 
-  // Get subscriptions for a specific day (returns a Future)
+  // Get subscription occurrences for a specific day (returns a Future)
   Future<List<Subscription>> getSubscriptionsForDay(DateTime day) async {
-    // SQLite doesn't have direct DateTime comparison, use ISO strings or timestamps
-    final startOfDay = DateTime(day.year, day.month, day.day).toIso8601String();
-    // For 'between', the end date should be the start of the *next* day
-    final startOfNextDay = DateTime(day.year, day.month, day.day + 1).toIso8601String();
+    // Fetch all potentially relevant subscriptions first
+    // Optimization: Could filter further based on billing cycle and dates if needed
+    final allSubsMaps = await _db.query(DatabaseHelper.table);
+    final allSubscriptions = allSubsMaps.map((map) => Subscription.fromMap(map)).toList();
 
-    final List<Map<String, dynamic>> maps = await _db.query(
-      DatabaseHelper.table,
-      where: '${DatabaseHelper.columnRenewalDate} >= ? AND ${DatabaseHelper.columnRenewalDate} < ?',
-      whereArgs: [startOfDay, startOfNextDay],
-      orderBy: '${DatabaseHelper.columnRenewalDate} ASC',
-    );
-    return List.generate(maps.length, (i) {
-      return Subscription.fromMap(maps[i]);
-    });
+    final List<Subscription> occurrences = [];
+    final dayUtc = DateTime.utc(day.year, day.month, day.day);
+
+    for (final sub in allSubscriptions) {
+      // Skip if subscription starts after the target day
+      if (sub.startDate != null && sub.startDate!.isAfter(day)) {
+        continue;
+      }
+
+      if (sub.billingCycle == BillingCycle.oneTime) {
+        // Check if the single renewal date matches the target day
+        final renewalDayUtc = DateTime.utc(sub.renewalDate.year, sub.renewalDate.month, sub.renewalDate.day);
+        if (renewalDayUtc.isAtSameMomentAs(dayUtc)) {
+          occurrences.add(sub);
+        }
+      } else {
+        // Calculate recurring occurrences for the target day
+        DateTime currentRenewal = sub.renewalDate;
+        DateTime effectiveStartDate = sub.startDate ?? sub.createdAt; // Use start date or creation date
+
+        // Adjust initial check date based on start date
+        while (currentRenewal.isBefore(effectiveStartDate)) {
+           currentRenewal = _calculateNextBillDate(currentRenewal, sub.billingCycle);
+        }
+
+        // Generate renewals and check if they fall on the target day
+        // Limit iterations to prevent infinite loops in edge cases (e.g., 100 years)
+        int iterations = 0;
+        final maxIterations = 12 * 100; // Max 100 years of iterations
+
+        // Find the first renewal date >= effectiveStartDate
+        while (currentRenewal.isBefore(effectiveStartDate) && iterations < maxIterations) {
+          currentRenewal = _calculateNextBillDate(currentRenewal, sub.billingCycle);
+          iterations++;
+        }
+
+        // Now check if this or future renewals match the target day
+        iterations = 0; // Reset iteration count for the main loop
+        while (currentRenewal.isBefore(day.add(const Duration(days: 1))) && iterations < maxIterations) {
+           final currentRenewalDayUtc = DateTime.utc(currentRenewal.year, currentRenewal.month, currentRenewal.day);
+           if (currentRenewalDayUtc.isAtSameMomentAs(dayUtc)) {
+             // Create a temporary instance with the correct renewal date for this occurrence
+             occurrences.add(Subscription.fromMap(sub.toMap()..[DatabaseHelper.columnRenewalDate] = currentRenewal.toIso8601String()));
+             break; // Found occurrence for this day, no need to check further for this sub
+           }
+           // If current renewal is after the target day, stop checking for this sub
+           if (currentRenewal.isAfter(day)) {
+              break;
+           }
+           currentRenewal = _calculateNextBillDate(currentRenewal, sub.billingCycle);
+           iterations++;
+        }
+      }
+    }
+    // Sort occurrences by original renewal date or name if needed
+    occurrences.sort((a, b) => a.renewalDate.compareTo(b.renewalDate));
+    return occurrences;
   }
 
-  // Get subscriptions within a date range (useful for calendar events)
-  Future<List<Subscription>> getSubscriptionsInDateRange(DateTime start, DateTime end) async {
-     final startStr = start.toIso8601String();
-     // Adjust end date to be inclusive for the whole day
-     final endOfDayStr = DateTime(end.year, end.month, end.day, 23, 59, 59, 999).toIso8601String();
 
-     final List<Map<String, dynamic>> maps = await _db.query(
-       DatabaseHelper.table,
-       where: '${DatabaseHelper.columnRenewalDate} BETWEEN ? AND ?',
-       whereArgs: [startStr, endOfDayStr],
-       orderBy: '${DatabaseHelper.columnRenewalDate} ASC',
-     );
-     return List.generate(maps.length, (i) {
-       return Subscription.fromMap(maps[i]);
-     });
+  // Get subscription occurrences within a date range (useful for calendar events)
+  Future<List<Subscription>> getSubscriptionsInDateRange(DateTime start, DateTime end) async {
+    // Fetch all potentially relevant subscriptions
+    // Optimization: Could filter by startDate <= end
+    final allSubsMaps = await _db.query(DatabaseHelper.table);
+    final allSubscriptions = allSubsMaps.map((map) => Subscription.fromMap(map)).toList();
+
+    final List<Subscription> occurrences = [];
+    final rangeEnd = DateTime.utc(end.year, end.month, end.day, 23, 59, 59); // Ensure end is inclusive
+
+    for (final sub in allSubscriptions) {
+      // Skip if subscription starts after the range ends
+      if (sub.startDate != null && sub.startDate!.isAfter(rangeEnd)) {
+        continue;
+      }
+
+      if (sub.billingCycle == BillingCycle.oneTime) {
+        // Check if the single renewal date is within the range and after start date
+        final effectiveStartDate = sub.startDate ?? sub.createdAt;
+        if (sub.renewalDate.isAfter(start.subtract(const Duration(days: 1))) &&
+            sub.renewalDate.isBefore(rangeEnd.add(const Duration(days: 1))) &&
+            !sub.renewalDate.isBefore(effectiveStartDate)) {
+          occurrences.add(sub);
+        }
+      } else {
+        // Calculate recurring occurrences within the range
+        DateTime currentRenewal = sub.renewalDate;
+        DateTime effectiveStartDate = sub.startDate ?? sub.createdAt; // Use start date or creation date
+
+        // Limit iterations to prevent infinite loops (e.g., 100 years)
+        int iterations = 0;
+        final maxIterations = 12 * 100;
+
+        // Find the first renewal date >= effectiveStartDate
+        while (currentRenewal.isBefore(effectiveStartDate) && iterations < maxIterations) {
+          currentRenewal = _calculateNextBillDate(currentRenewal, sub.billingCycle);
+          iterations++;
+        }
+
+
+        // Generate renewals and add those within the range [start, rangeEnd]
+        iterations = 0; // Reset iteration count
+        while (currentRenewal.isBefore(rangeEnd.add(const Duration(days: 1))) && iterations < maxIterations) {
+          // Check if the current renewal is within the query range [start, rangeEnd]
+          // and also on or after the effective start date
+          if (!currentRenewal.isBefore(start) && !currentRenewal.isBefore(effectiveStartDate)) {
+             // Create a temporary instance with the correct renewal date for this occurrence
+             occurrences.add(Subscription.fromMap(sub.toMap()..[DatabaseHelper.columnRenewalDate] = currentRenewal.toIso8601String()));
+          }
+          // Stop if the next renewal would definitely be after the range end
+          if (currentRenewal.isAfter(rangeEnd)) {
+             break;
+          }
+          currentRenewal = _calculateNextBillDate(currentRenewal, sub.billingCycle);
+          iterations++;
+        }
+      }
+    }
+     // Sort occurrences by date
+    occurrences.sort((a, b) => a.renewalDate.compareTo(b.renewalDate));
+    return occurrences;
+  }
+
+  // Helper function to calculate the next billing date based on cycle
+  // NOTE: This is a simplified calculation. Consider edge cases like end-of-month.
+  DateTime _calculateNextBillDate(DateTime currentBillDate, BillingCycle cycle) {
+    if (cycle == BillingCycle.monthly) {
+      // Basic month addition - might need refinement for specific day handling (e.g., 31st)
+      int year = currentBillDate.year;
+      int month = currentBillDate.month + 1;
+      int day = currentBillDate.day;
+
+      if (month > 12) {
+        month = 1;
+        year++;
+      }
+      // Check days in next month
+      int daysInNextMonth = DateTime(year, month + 1, 0).day;
+      if (day > daysInNextMonth) {
+        day = daysInNextMonth; // Adjust to last day if original day doesn't exist
+      }
+      return DateTime(year, month, day, currentBillDate.hour, currentBillDate.minute, currentBillDate.second);
+
+    } else if (cycle == BillingCycle.yearly) {
+       int year = currentBillDate.year + 1;
+       int month = currentBillDate.month;
+       int day = currentBillDate.day;
+
+       // Handle leap years for Feb 29th
+       if (month == 2 && day == 29) {
+         // If next year is not a leap year, move to Feb 28th
+         if (!DateTime(year, 3, 0).day == 29) { // Check if Feb has 29 days next year
+            day = 28;
+         }
+       }
+       return DateTime(year, month, day, currentBillDate.hour, currentBillDate.minute, currentBillDate.second);
+    } else {
+      // Should not happen for recurring calculation, but return current date as fallback
+      return currentBillDate;
+    }
   }
 
   // Add or update a subscription
