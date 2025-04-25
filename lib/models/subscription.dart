@@ -18,6 +18,7 @@ class Subscription {
   late String uuid; // Unique identifier for syncing or external reference
   late String name;
   late DateTime createdAt;
+  DateTime? startDate; // When the subscription actually starts (optional)
 
   // Framework Fields
   // Removed Isar index annotations
