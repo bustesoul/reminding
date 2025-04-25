@@ -93,6 +93,7 @@ class Subscription {
       DatabaseHelper.columnUuid: uuid,
       DatabaseHelper.columnName: name,
       DatabaseHelper.columnCreatedAt: createdAt.toIso8601String(), // Store as String
+      DatabaseHelper.columnStartDate: startDate?.toIso8601String(), // Store nullable startDate as String
       DatabaseHelper.columnRenewalDate: renewalDate.toIso8601String(), // Store as String
       DatabaseHelper.columnBillingCycle: billingCycle.name, // Store enum name as String
       DatabaseHelper.columnReminderDays: reminderDays,
