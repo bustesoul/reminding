@@ -218,7 +218,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             final subscription = subscriptions[index];
             return SubscriptionListItem(
               subscription: subscription,
-              onTap: () {
+              onTap: () async { // Added async keyword here
                 // Navigate to edit screen, passing the subscription
                 // Navigate to edit and wait for result
                 final result = await Navigator.push<bool>(

@@ -260,23 +260,6 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
 
 
       // --- Create or Update Subscription ---
-      final subscriptionToSave = Subscription(
-        name: _nameController.text,
-        renewalDate: _selectedRenewalDate!, // This date now implicitly defines the recurring day/month
-        billingCycle: _selectedBillingCycle,
-        // billingDayOfMonth and billingMonthOfYear removed
-        price: price,
-        category: category,
-        rating: _selectedRating,
-        reminderDays: _reminderDays,
-        // Custom fields are handled separately below
-      );
-
-      // Set custom fields directly on the object
-      subscriptionToSave.customFields = customFields;
-
-
-      // --- Create or Update Subscription ---
       // Pass existing id, uuid, createdAt if editing, otherwise they'll be generated/set by constructor/db
       final finalSubscription = Subscription(
         id: isEditing ? widget.subscription!.id : null,
