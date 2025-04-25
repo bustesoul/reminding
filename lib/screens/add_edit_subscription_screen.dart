@@ -8,10 +8,15 @@ import 'package:reminding/models/subscription.dart'; // Ensure model is imported
 import 'package:reminding/repositories/subscription_repository.dart'; // Import repository
 // No longer need dart:convert explicitly here unless used elsewhere
 
-class AddEditSubscriptionScreen extends ConsumerStatefulWidget { // Added class declaration
-  final Subscription? subscription; // Added field declaration inside class
+class AddEditSubscriptionScreen extends ConsumerStatefulWidget {
+  final Subscription? subscription; // Existing subscription if editing
+  final DateTime? initialDate; // Optional initial date passed from HomeScreen
 
-  const AddEditSubscriptionScreen({super.key, this.subscription});
+  const AddEditSubscriptionScreen({
+    super.key,
+    this.subscription,
+    this.initialDate, // Add initialDate parameter
+  });
 
   @override
   ConsumerState<AddEditSubscriptionScreen> createState() => _AddEditSubscriptionScreenState();
@@ -39,21 +44,29 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
   @override
   void initState() {
     super.initState();
-    final sub = widget.subscription;
+    final sub = widget.subscription; // Existing subscription, if any
+    final initialDate = widget.initialDate; // Date passed from HomeScreen, if any
     final now = DateTime.now();
-    final todayUtc = DateTime.utc(now.year, now.month, now.day); // Use UTC for consistency
+    final defaultDate = DateTime.utc(now.year, now.month, now.day); // Fallback date
 
     _nameController = TextEditingController(text: sub?.name ?? '');
     _priceController = TextEditingController(text: sub?.price?.toString() ?? '');
     _categoryController = TextEditingController(text: sub?.category ?? '');
-    // StartDate is now required. Default to today if creating new.
-    _selectedStartDate = sub?.startDate ?? todayUtc;
-    // _selectedRenewalDate = sub?.renewalDate ?? DateTime.now(); // Removed
+
+    // Determine the initial start date:
+    // 1. Use existing subscription's start date if editing.
+    // 2. Use initialDate passed from HomeScreen if adding and it's provided.
+    // 3. Use today's date as fallback if adding without initialDate.
+    _selectedStartDate = sub?.startDate ?? (initialDate != null ? DateTime.utc(initialDate.year, initialDate.month, initialDate.day) : defaultDate);
+
     _selectedRating = sub?.rating;
     _reminderDays = sub?.reminderDays;
     // Initialize billing cycle field
-    _selectedBillingCycle = sub?.billingCycle ?? BillingCycle.monthly; // Default to monthly maybe?
-    // Initialize anchor fields from subscription or default to start date's parts
+    _selectedBillingCycle = sub?.billingCycle ?? BillingCycle.monthly; // Default to monthly for new
+
+    // Initialize anchor fields:
+    // 1. Use existing subscription's anchors if editing.
+    // 2. Use the determined _selectedStartDate's parts if adding.
     _selectedRenewalAnchorDay = sub?.renewalAnchorDay ?? _selectedStartDate.day;
     _selectedRenewalAnchorMonth = sub?.renewalAnchorMonth ?? _selectedStartDate.month;
 

@@ -150,10 +150,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
+          // Pass the selected day to the AddEdit screen when adding
+          final initialDate = _selectedDay; // Use the currently selected day
+
           // Navigate and wait for result to potentially refresh
           final result = await Navigator.push<bool>( // Expect a boolean indicating if save occurred
             context,
-            MaterialPageRoute(builder: (context) => const AddEditSubscriptionScreen()),
+            MaterialPageRoute(
+              builder: (context) => AddEditSubscriptionScreen(
+                // Pass initialDate only when adding a new subscription
+                initialDate: initialDate,
+              ),
+            ),
           );
           // If result is true (meaning save happened), refresh relevant data
           if (result == true && mounted) {
