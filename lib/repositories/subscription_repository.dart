@@ -14,10 +14,10 @@ class SubscriptionRepository {
   Future<List<Subscription>> getAllSubscriptions() async {
     final List<Map<String, dynamic>> maps = await _db.query(
       DatabaseHelper.table,
-      orderBy: '${DatabaseHelper.columnRenewalDate} ASC',
+      orderBy: '${DatabaseHelper.columnStartDate} ASC', // Order by startDate now
     );
     return List.generate(maps.length, (i) {
-      return Subscription.fromMap(maps[i]);
+      return Subscription.fromMap(maps[i]); // fromMap handles new structure
     });
   }
 
