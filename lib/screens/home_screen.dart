@@ -232,17 +232,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Month Name
-        Text(
-          DateFormat.MMMM().format(day), // Only Month
-          style: Theme.of(context).textTheme.titleMedium, // Use theme style
+        // Month Name (make tappable)
+        InkWell(
+          onTap: () => _selectMonth(context, day), // Call month selection dialog
+          child: Padding(
+            // Add padding for better tap area
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+            child: Text(
+              DateFormat.MMMM().format(day), // Only Month
+              style: Theme.of(context).textTheme.titleMedium, // Use theme style
+            ),
+          ),
         ),
         const SizedBox(width: 10),
-        // Year Dropdown
-        DropdownButton<int>(
-          value: _currentYear,
-          items: years.map((int year) {
-            return DropdownMenuItem<int>(
+        // Year Dropdown (wrapped to hide icon)
+        DropdownButtonHideUnderline( // Hide the default underline
+          child: DropdownButton<int>(
+            value: _currentYear,
+            iconSize: 0.0, // Hide the default dropdown icon
+            items: years.map((int year) {
+              return DropdownMenuItem<int>(
               value: year,
               child: Text(year.toString()),
             );
@@ -258,13 +267,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 final daysInNewMonth = DateTime(newYear, currentMonth + 1, 0).day;
                 final newDay = (currentDay > daysInNewMonth) ? daysInNewMonth : currentDay;
                 _focusedDay = DateTime.utc(newYear, currentMonth, newDay);
-              });
-               // Refresh events for the new focused day/month/year
-              ref.invalidate(subscriptionEventsProvider(_focusedDay));
-            }
-          },
-          underline: Container(), // Hide default underline
-          style: Theme.of(context).textTheme.titleMedium, // Match month style
+                // Refresh events for the new focused day/month/year
+                ref.invalidate(subscriptionEventsProvider(_focusedDay));
+              }
+            },
+            // underline: Container(), // Removed by DropdownButtonHideUnderline
+            style: Theme.of(context).textTheme.titleMedium, // Match month style
+          ),
         ),
       ],
     );
@@ -341,6 +350,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
      }
      // TODO: Add invalidation for the full subscription list provider when implemented
   }
+
+  // --- Month Selection Dialog ---
+  Future<void> _selectMonth(BuildContext context, DateTime currentFocusedDay) async {
+    final selectedMonth = await showModalBottomSheet<int>(
+      context: context,
+      builder: (BuildContext context) {
+        return SizedBox(
+          height: 300, // Adjust height as needed
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3, // 3 months per row
+              childAspectRatio: 2.5, // Adjust aspect ratio
+            ),
+            itemCount: 12,
+            itemBuilder: (context, index) {
+              final month = index + 1;
+              final monthDate = DateTime(currentFocusedDay.year, month);
+              final isSelectedMonth = month == currentFocusedDay.month;
+              return InkWell(
+                onTap: () => Navigator.of(context).pop(month), // Return selected month number
+                child: Container(
+                  alignment: Alignment.center,
+                  margin: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: isSelectedMonth ? Theme.of(context).colorScheme.primaryContainer : null,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    DateFormat.MMM().format(monthDate), // Short month name (e.g., Jan)
+                    style: TextStyle(
+                      fontWeight: isSelectedMonth ? FontWeight.bold : FontWeight.normal,
+                      color: isSelectedMonth ? Theme.of(context).colorScheme.onPrimaryContainer : null,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    if (selectedMonth != null && selectedMonth != currentFocusedDay.month) {
+      setState(() {
+        // Calculate the new focused day keeping the year and day
+        final currentYear = _focusedDay.year;
+        final currentDay = _focusedDay.day;
+        // Handle potential day issues (e.g., switching to Feb from Mar 31)
+        final daysInNewMonth = DateTime(currentYear, selectedMonth + 1, 0).day;
+        final newDay = (currentDay > daysInNewMonth) ? daysInNewMonth : currentDay;
+        _focusedDay = DateTime.utc(currentYear, selectedMonth, newDay);
+        // _currentYear remains the same unless logic changes
+      });
+      // Refresh events for the new focused day/month/year
+      ref.invalidate(subscriptionEventsProvider(_focusedDay));
+    }
+  }
+  // --- End Month Selection Dialog ---
 
 
   // Widget to build the small marker indicating events on a day
