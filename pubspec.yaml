@@ -36,9 +36,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   table_calendar: ^3.1.2 # For calendar UI
   flutter_riverpod: ^2.5.1 # For state management
-  isar: ^3.1.0+1 # Database
-  isar_flutter_libs: ^3.1.0+1 # Isar bindings
-  path_provider: ^2.1.3 # To find correct path for Isar
+  sqflite: ^2.3.3+1 # SQLite database
+  path: ^1.9.0 # Path manipulation, used with sqflite
+  path_provider: ^2.1.3 # To find correct path for database
   uuid: ^4.4.2 # For generating unique IDs
 
 dev_dependencies:
@@ -51,8 +51,9 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
-  isar_generator: ^3.1.0+1 # Isar code generator
-  build_runner: ^2.4.11 # Code generation tool
+  # build_runner might not be needed anymore if only used for Isar
+  # isar_generator: ^3.1.0+1 # Isar code generator
+  # build_runner: ^2.4.11 # Code generation tool
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

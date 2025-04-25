@@ -1,43 +1,34 @@
 import 'dart:convert';
-import 'package:isar/isar.dart';
 import 'package:uuid/uuid.dart';
+import 'package:reminding/repositories/database_helper.dart'; // Import for column names
 
-part 'subscription.g.dart'; // Isar will generate this file
+// Removed Isar imports
+// part 'subscription.g.dart'; // No longer needed
 
 // Enum to represent the billing cycle
 enum BillingCycle { oneTime, monthly, yearly }
 
-@collection
+// Removed Isar annotations
 class Subscription {
-  // Isar's auto-incrementing ID
-  Id id = Isar.autoIncrement;
+  // SQLite's auto-incrementing ID (nullable for new objects)
+  int? id;
 
   // Basic Fields
-  @Index(unique: true, replace: true) // Ensure UUID is unique
+  // Removed Isar index annotations
   late String uuid; // Unique identifier for syncing or external reference
-
   late String name;
   late DateTime createdAt;
 
   // Framework Fields
-  @Index() // Index for querying by renewal date
+  // Removed Isar index annotations
   late DateTime renewalDate; // Represents the *next* renewal date
 
-  @enumerated // Store enum by index for efficiency
+  // Removed Isar enumerated annotation
   late BillingCycle billingCycle; // Billing frequency
 
-  // billingDayOfMonth and billingMonthOfYear are removed.
-  // The day/month for recurring cycles will be derived from the initial renewalDate.
-
   int? reminderDays; // Days before renewal to remind
-
-  @Index() // Index for querying by category
   String? category;
-
-  @Index() // Index for querying by rating
   int? rating; // e.g., 1-5 stars
-
-  @Index() // Index for querying by price
   double? price;
 
   // Extension Field
@@ -46,23 +37,19 @@ class Subscription {
   // --- Constructors ---
 
   Subscription({
+    this.id, // Allow setting ID when reading from DB
     required this.name,
     required this.renewalDate,
+    required this.billingCycle,
+    String? uuid, // Allow setting UUID when reading from DB
+    DateTime? createdAt, // Allow setting createdAt when reading from DB
     this.category,
     this.rating,
     this.price,
     this.reminderDays,
-    this.billingCycle = BillingCycle.oneTime, // Default to oneTime
-    // billingDayOfMonth, billingMonthOfYear parameters removed
     Map<String, dynamic>? customData,
-  }) {
-    // Validation for billingDayOfMonth/billingMonthOfYear removed
-
-    uuid = const Uuid().v4(); // Generate a unique ID
-    createdAt = DateTime.now();
-    // Note: The initial calculation of the *first* renewalDate based on the cycle
-    // might happen here or when saving the object, depending on your logic.
-    // For now, the required renewalDate parameter sets the initial next renewal.
+  })  : uuid = uuid ?? const Uuid().v4(), // Generate UUID if not provided
+        createdAt = createdAt ?? DateTime.now() { // Set creation time if not provided
     if (customData != null) {
       customFields = jsonEncode(customData); // Encode custom data to JSON string
     }
@@ -71,7 +58,7 @@ class Subscription {
   // --- Helper Methods ---
 
   // Helper to get custom data as a Map
-  @ignore // Tell Isar to ignore this getter
+  // Removed Isar ignore annotation
   Map<String, dynamic>? get customDataMap {
     if (customFields == null || customFields!.isEmpty) {
       return null;
@@ -94,14 +81,57 @@ class Subscription {
     }
   }
 
+  // --- Conversion Methods for SQLite ---
+
+  // Convert a Subscription object into a Map for SQLite
+  Map<String, dynamic> toMap() {
+    // Create a map, but exclude the ID if it's null (for inserts)
+    final map = <String, dynamic>{
+      // DatabaseHelper.columnId: id, // Excluded if null
+      DatabaseHelper.columnUuid: uuid,
+      DatabaseHelper.columnName: name,
+      DatabaseHelper.columnCreatedAt: createdAt.toIso8601String(), // Store as String
+      DatabaseHelper.columnRenewalDate: renewalDate.toIso8601String(), // Store as String
+      DatabaseHelper.columnBillingCycle: billingCycle.name, // Store enum name as String
+      DatabaseHelper.columnReminderDays: reminderDays,
+      DatabaseHelper.columnCategory: category,
+      DatabaseHelper.columnRating: rating,
+      DatabaseHelper.columnPrice: price,
+      DatabaseHelper.columnCustomFields: customFields,
+    };
+    // Only include the ID in the map if it's not null (for updates)
+    if (id != null) {
+      map[DatabaseHelper.columnId] = id;
+    }
+    return map;
+  }
+
+
+  // Create a Subscription object from a Map retrieved from SQLite
+  factory Subscription.fromMap(Map<String, dynamic> map) {
+    return Subscription(
+      id: map[DatabaseHelper.columnId] as int?,
+      uuid: map[DatabaseHelper.columnUuid] as String,
+      name: map[DatabaseHelper.columnName] as String,
+      createdAt: DateTime.parse(map[DatabaseHelper.columnCreatedAt] as String), // Parse from String
+      renewalDate: DateTime.parse(map[DatabaseHelper.columnRenewalDate] as String), // Parse from String
+      billingCycle: BillingCycle.values.byName(map[DatabaseHelper.columnBillingCycle] as String), // Parse enum from String
+      reminderDays: map[DatabaseHelper.columnReminderDays] as int?,
+      category: map[DatabaseHelper.columnCategory] as String?,
+      rating: map[DatabaseHelper.columnRating] as int?,
+      price: map[DatabaseHelper.columnPrice] as double?,
+      customFields: map[DatabaseHelper.columnCustomFields] as String?,
+    );
+  }
+
   // --- toString for debugging ---
   @override
   String toString() {
-    // Removed billingDayOfMonth and billingMonthOfYear from toString
     return 'Subscription(id: $id, uuid: $uuid, name: $name, createdAt: $createdAt, renewalDate: $renewalDate, billingCycle: $billingCycle, category: $category, price: $price, rating: $rating, reminderDays: $reminderDays, customFields: $customFields)';
   }
 
   // --- Helper method to calculate next renewal date (Example) ---
+  // This logic remains the same, but ensure renewalDate is correctly handled
   // This logic might be better placed in a service or repository
   // depending on how you manage subscription updates.
   DateTime calculateNextRenewalDate() {

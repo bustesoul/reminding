@@ -4,10 +4,9 @@ import 'package:flutter/services.dart'; // For TextInputFormatters
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart'; // For date formatting
 import 'package:reminding/models/subscription.dart';
+import 'package:reminding/models/subscription.dart'; // Ensure model is imported
 import 'package:reminding/repositories/subscription_repository.dart'; // Import repository
-
-class AddEditSubscriptionScreen extends ConsumerStatefulWidget {
-  final Subscription? subscription; // Pass existing subscription for editing
+// No longer need dart:convert explicitly here unless used elsewhere
 
   const AddEditSubscriptionScreen({super.key, this.subscription});
 
@@ -274,20 +273,34 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
       subscriptionToSave.customFields = customFields;
 
 
-      // If editing, preserve the original ID and UUID, createdAt
-      if (isEditing) {
-        subscriptionToSave.id = widget.subscription!.id;
-        subscriptionToSave.uuid = widget.subscription!.uuid;
-        subscriptionToSave.createdAt = widget.subscription!.createdAt;
-      }
+      // --- Create or Update Subscription ---
+      // Pass existing id, uuid, createdAt if editing, otherwise they'll be generated/set by constructor/db
+      final finalSubscription = Subscription(
+        id: isEditing ? widget.subscription!.id : null,
+        uuid: isEditing ? widget.subscription!.uuid : null,
+        createdAt: isEditing ? widget.subscription!.createdAt : null,
+        name: _nameController.text,
+        renewalDate: _selectedRenewalDate!,
+        billingCycle: _selectedBillingCycle,
+        price: price,
+        category: category,
+        rating: _selectedRating,
+        reminderDays: _reminderDays,
+        // customFields is set below
+      );
+
+      // Set custom fields directly (constructor handles encoding if needed, but we have the string)
+      finalSubscription.customFields = customFields;
+
 
       try {
-        await repository.saveSubscription(subscriptionToSave);
+        await repository.saveSubscription(finalSubscription);
         if (mounted) { // Check if the widget is still in the tree
            ScaffoldMessenger.of(context).showSnackBar(
              SnackBar(content: Text('Subscription ${isEditing ? 'updated' : 'added'}!')),
            );
-          Navigator.of(context).pop(); // Go back after saving
+          // Pop with a result to indicate success
+          Navigator.of(context).pop(true); // Pass true back
         }
       } catch (e) {
          if (mounted) {

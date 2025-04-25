@@ -2,18 +2,21 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar/isar.dart';
+import 'package:sqflite/sqflite.dart'; // Import sqflite
+import 'package:path/path.dart'; // Import path
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/date_symbol_data_local.dart'; // Import for date formatting initialization
 
-import 'models/subscription.dart';
+// Removed Isar import
+// import 'models/subscription.dart'; // Schema no longer needed here
+import 'repositories/database_helper.dart'; // Import the new DatabaseHelper
 import 'screens/home_screen.dart'; // Import the new home screen
 
-// Provider to hold the Isar instance
+// Provider to hold the Database instance
 // We use late final because it will be initialized in main() before runApp()
-late final Provider<Isar> isarProvider;
+late final Provider<Database> databaseProvider;
 
-// We make main async to allow for initialization steps (like Isar)
+// We make main async to allow for initialization steps (like SQLite)
 Future<void> main() async {
   // Ensure Flutter bindings are initialized (needed for async main and path_provider)
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,17 +25,13 @@ Future<void> main() async {
   // Must be called before `runApp` or any date formatting.
   await initializeDateFormatting();
 
-  // --- Isar Initialization ---
-  final dir = await getApplicationDocumentsDirectory();
-  final isar = await Isar.open(
-    [SubscriptionSchema], // Add your schema here
-    directory: dir.path,
-    name: 'subscriptionDb', // Optional: name the database instance
-  );
-  // --- End Isar Initialization ---
+  // --- SQLite Initialization ---
+  final dbHelper = DatabaseHelper.instance;
+  final database = await dbHelper.database; // This initializes the database
+  // --- End SQLite Initialization ---
 
-  // Assign the initialized Isar instance to the provider
-  isarProvider = Provider<Isar>((ref) => isar);
+  // Assign the initialized Database instance to the provider
+  databaseProvider = Provider<Database>((ref) => database);
 
   // Wrap the entire app in a ProviderScope for Riverpod
   runApp(const ProviderScope(child: MyApp()));

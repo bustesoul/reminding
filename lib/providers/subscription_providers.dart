@@ -1,16 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reminding/models/subscription.dart';
 import 'package:reminding/repositories/subscription_repository.dart';
-import 'package:table_calendar/table_calendar.dart'; // For isSameDay
+// import 'package:table_calendar/table_calendar.dart'; // isSameDay is used in home_screen
 
-// Provider to watch subscriptions for a specific day
-final subscriptionsForDayProvider = StreamProvider.autoDispose.family<List<Subscription>, DateTime>((ref, day) {
+// Provider to get subscriptions for a specific day (now FutureProvider)
+// Note: This will not automatically update. UI needs to refresh it.
+final subscriptionsForDayProvider = FutureProvider.autoDispose.family<List<Subscription>, DateTime>((ref, day) {
   final repository = ref.watch(subscriptionRepositoryProvider);
-  return repository.watchSubscriptionsForDay(day);
+  // Call the new Future-based method
+  return repository.getSubscriptionsForDay(day);
 });
 
 // Provider to get subscription renewal dates for the calendar event loader
-// We use FutureProvider here as TableCalendar's eventLoader expects a sync list.
+// This remains a FutureProvider, implementation detail changes.
 // We'll fetch events for a reasonable range around the focused month.
 final subscriptionEventsProvider = FutureProvider.autoDispose.family<List<Subscription>, DateTime>((ref, focusedMonth) {
   final repository = ref.watch(subscriptionRepositoryProvider);

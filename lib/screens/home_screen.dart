@@ -1,7 +1,8 @@
-import 'dart:collection'; // For LinkedHashMap used in event loader
+import 'dart:collection'; // For LinkedHashMap
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// Make sure table_calendar is still imported if needed elsewhere, or remove if not
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart'; // For date formatting
 
@@ -69,7 +70,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             lastDay: DateTime.utc(2030, 3, 14), // Example end date
             focusedDay: _focusedDay,
             calendarFormat: _calendarFormat,
-            eventLoader: (day) => _getEventsForDay(day, eventsAsyncValue.value), // Use helper
+            // eventLoader now directly uses the map populated by the FutureProvider's data
+            eventLoader: (day) => _eventsMap[day] ?? [],
             selectedDayPredicate: (day) {
               // Use `selectedDayPredicate` to determine which day is currently selected.
               // If this returns true, then `day` will be marked as selected.
@@ -78,11 +80,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onDaySelected: (selectedDay, focusedDay) {
               if (!isSameDay(_selectedDay, selectedDay)) {
                 // Call `setState()` when updating the selected day
+                // Check if the widget is still mounted before calling setState
+                if (!mounted) return;
                 setState(() {
                   _selectedDay = selectedDay;
                   _focusedDay = focusedDay; // update `_focusedDay` here as well
                 });
-                // TODO: Load subscriptions for the selected day
+                // Refresh the provider for the newly selected day's list
+                ref.invalidate(subscriptionsForDayProvider(_selectedDay!));
               }
             },
             onFormatChanged: (format) {
@@ -94,8 +99,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               }
             },
             onPageChanged: (focusedDay) {
-              // No need to call `setState()` here
-              _focusedDay = focusedDay;
+              // Update focused day and potentially refresh events if needed
+              // Check if the widget is still mounted before calling setState
+              if (!mounted) return;
+              setState(() {
+                 _focusedDay = focusedDay;
+              });
+              // Refresh the events provider for the new visible month range
+              ref.invalidate(subscriptionEventsProvider(_focusedDay));
             },
             calendarStyle: CalendarStyle(
               todayDecoration: BoxDecoration(
@@ -132,17 +143,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          // Navigate and wait for result to potentially refresh
+          final result = await Navigator.push<bool>( // Expect a boolean indicating if save occurred
             context,
             MaterialPageRoute(builder: (context) => const AddEditSubscriptionScreen()),
           );
+          // If result is true (meaning save happened), refresh relevant data
+          if (result == true && mounted) {
+             _refreshData();
+          }
         },
         child: const Icon(Icons.add),
         tooltip: 'Add Subscription',
       ),
     );
   }
+
+  // Method to refresh data providers
+  void _refreshData() {
+     // Refresh events for the calendar view
+     ref.invalidate(subscriptionEventsProvider(_focusedDay));
+     // Refresh the list for the selected day (if a day is selected)
+     if (_selectedDay != null) {
+       ref.invalidate(subscriptionsForDayProvider(_selectedDay!));
+     }
+  }
+
 
   // Widget to build the small marker indicating events on a day
   Widget _buildEventsMarker(DateTime day, List<Subscription> events) {
@@ -193,14 +220,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               subscription: subscription,
               onTap: () {
                 // Navigate to edit screen, passing the subscription
-                Navigator.push(
+                // Navigate to edit and wait for result
+                final result = await Navigator.push<bool>(
                   context,
                   MaterialPageRoute(
                     builder: (context) => AddEditSubscriptionScreen(subscription: subscription),
                   ),
                 );
+                // If result is true (save happened), refresh data
+                if (result == true && mounted) {
+                  _refreshData();
+                }
               },
               // TODO: Add delete functionality (e.g., via Slidable or long-press menu)
+              // Example using Dismissible:
+              // key: Key(subscription.uuid), // Use a unique key
+              // background: Container(color: Colors.red, alignment: Alignment.centerRight, padding: EdgeInsets.only(right: 20), child: Icon(Icons.delete, color: Colors.white)),
+              // direction: DismissDirection.endToStart,
+              // onDismissed: (direction) async {
+              //   if (subscription.id == null) return; // Should not happen if displayed
+              //   try {
+              //     final repo = ref.read(subscriptionRepositoryProvider);
+              //     await repo.deleteSubscription(subscription.id!);
+              //     if (mounted) {
+              //        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${subscription.name} deleted')));
+              //        _refreshData(); // Refresh after delete
+              //     }
+              //   } catch (e) {
+              //     if (mounted) {
+              //        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting: $e')));
+              //        // Optionally re-fetch data even on error to ensure consistency
+              //        _refreshData();
+              //     }
+              //   }
+              // },
+              // child: SubscriptionListItem(...) // Your original item
             );
           },
         );
