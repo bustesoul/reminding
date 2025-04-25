@@ -51,7 +51,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     eventsAsyncValue.whenData((eventTuples) {
       _eventsMap.clear();
       for (final tuple in eventTuples) {
-        final subscription = tuple.$1; // Access the subscription object
+        // final subscription = tuple.$1; // Access the subscription object
         final occurrenceDate = tuple.$2; // Access the occurrence date
         // Use the occurrenceDate for the map key
         final day = DateTime.utc(occurrenceDate.year, occurrenceDate.month, occurrenceDate.day);
@@ -69,7 +69,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: Column(
         children: [
-          TableCalendar<Subscription>( // Specify the event type
+          TableCalendar<(Subscription, DateTime)>( // Changed generic type to tuple
             firstDay: DateTime.utc(2010, 10, 16), // Example start date
             lastDay: DateTime.utc(2030, 3, 14), // Example end date
             focusedDay: _focusedDay,
