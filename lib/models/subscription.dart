@@ -109,6 +109,19 @@ class Subscription {
 
   // Create a Subscription object from a Map retrieved from SQLite
   factory Subscription.fromMap(Map<String, dynamic> map) {
+    // Decode customFields JSON string back to a Map
+    Map<String, dynamic>? customDataMap;
+    final customFieldsString = map[DatabaseHelper.columnCustomFields] as String?;
+    if (customFieldsString != null && customFieldsString.isNotEmpty) {
+      try {
+        customDataMap = jsonDecode(customFieldsString) as Map<String, dynamic>?;
+      } catch (e) {
+        print("Error decoding customFields from DB for map $map: $e");
+        // Decide how to handle invalid JSON from DB: null, empty map, or throw?
+        customDataMap = null;
+      }
+    }
+
     return Subscription(
       id: map[DatabaseHelper.columnId] as int?,
       uuid: map[DatabaseHelper.columnUuid] as String,
@@ -120,7 +133,7 @@ class Subscription {
       category: map[DatabaseHelper.columnCategory] as String?,
       rating: map[DatabaseHelper.columnRating] as int?,
       price: map[DatabaseHelper.columnPrice] as double?,
-      customFields: map[DatabaseHelper.columnCustomFields] as String?,
+      customData: customDataMap, // Pass the decoded map here
     );
   }
 
