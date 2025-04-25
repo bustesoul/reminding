@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For TextInputFormatters
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart'; // For date formatting
-import 'package:reminding/models/subscription.dart';
+// import 'package:reminding/models/subscription.dart'; // Duplicate removed
 import 'package:reminding/models/subscription.dart'; // Ensure model is imported
 import 'package:reminding/repositories/subscription_repository.dart'; // Import repository
 // No longer need dart:convert explicitly here unless used elsewhere
+
+class AddEditSubscriptionScreen extends ConsumerStatefulWidget { // Added class declaration
+  final Subscription? subscription; // Added field declaration inside class
 
   const AddEditSubscriptionScreen({super.key, this.subscription});
 
