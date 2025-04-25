@@ -190,15 +190,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           headerStyle: HeaderStyle(
             formatButtonVisible: false,
             titleCentered: true,
-            // Custom title builder to include year dropdown
             titleTextFormatter: (date, locale) => DateFormat.MMMM(locale).format(date), // Only show Month name
-            // Add left/right chevron customization if desired
-            // leftChevronIcon: Icon(Icons.chevron_left, color: Colors.grey),
-            // rightChevronIcon: Icon(Icons.chevron_right, color: Colors.grey),
-            // Custom header builder to add year dropdown
-            headerTitleBuilder: (context, day) {
-              return _buildCalendarHeader(day);
-            },
           ),
           calendarBuilders: CalendarBuilders(
             markerBuilder: (context, day, events) {
@@ -206,17 +198,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 return Positioned(
                   right: 1,
                   bottom: 1,
-                  // Use the default marker decoration defined in CalendarStyle
                   child: Container(
-                     decoration: CalendarStyle().markerDecoration, // Use style's marker
-                     width: 7.0, // Adjust size
-                     height: 7.0,
-                     margin: const EdgeInsets.symmetric(horizontal: 0.3),
-                   ),
-                  // child: _buildEventsMarker(day, events), // Old custom marker
+                    decoration: CalendarStyle().markerDecoration,
+                    width: 7.0,
+                    height: 7.0,
+                    margin: const EdgeInsets.symmetric(horizontal: 0.3),
+                  ),
                 );
               }
               return null;
+            },
+            headerTitleBuilder: (context, day) {
+              return _buildCalendarHeader(day);
             },
           ),
         ),
