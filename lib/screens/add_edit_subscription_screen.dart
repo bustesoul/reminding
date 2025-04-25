@@ -416,17 +416,10 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
            );
            return;
         }
-        // Validate day exists in month (ignoring leap year for simplicity here, model handles it)
-        if (_selectedRenewalAnchorMonth != null) {
-            // Use a non-leap year like 2023 for validation check
-            final daysInMonth = DateTime.utc(2023, _selectedRenewalAnchorMonth! + 1, 0).day;
-            if (_selectedRenewalAnchorDay! > daysInMonth) {
-                 ScaffoldMessenger.of(context).showSnackBar(
-                   SnackBar(content: Text('Invalid day ($_selectedRenewalAnchorDay) for the selected month.')),
-                 );
-                 return;
-            }
-        }
+        // Removed the specific day-in-month validation here.
+        // The Subscription model constructor already performs robust validation,
+        // including leap year checks for Feb 29 and general day/month validity.
+        // We rely on that validation to throw an ArgumentError if the combination is truly invalid.
       }
 
 
