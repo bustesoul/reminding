@@ -96,52 +96,64 @@ class SubscriptionRepository {
     final allSubscriptions = allSubsMaps.map((map) => Subscription.fromMap(map)).toList();
 
     final List<(Subscription, DateTime)> occurrences = []; // Changed list type
-    final rangeEnd = DateTime.utc(end.year, end.month, end.day, 23, 59, 59); // Ensure end is inclusive
+    final rangeStartUtc = DateTime.utc(start.year, start.month, start.day); // Use UTC for comparison start
+    final rangeEndUtc = DateTime.utc(end.year, end.month, end.day, 23, 59, 59); // Ensure end is inclusive
 
     for (final sub in allSubscriptions) {
-      // Skip if subscription starts after the range ends
-      if (sub.startDate != null && sub.startDate!.isAfter(rangeEnd)) {
+      // Determine the effective start date (anchor for recurrence)
+      final effectiveStartDate = sub.startDate ?? sub.createdAt;
+      final anchorDate = effectiveStartDate; // Use effectiveStartDate to determine day/month
+
+      // Skip if the subscription's anchor date is already after the range ends
+      if (DateTime.utc(anchorDate.year, anchorDate.month, anchorDate.day).isAfter(rangeEndUtc)) {
         continue;
       }
 
       if (sub.billingCycle == BillingCycle.oneTime) {
-        // Check if the single renewal date is within the range and after start date
-        final effectiveStartDate = sub.startDate ?? sub.createdAt;
-        if (sub.renewalDate.isAfter(start.subtract(const Duration(days: 1))) &&
-            sub.renewalDate.isBefore(rangeEnd.add(const Duration(days: 1))) &&
-            !sub.renewalDate.isBefore(effectiveStartDate)) {
+        // For one-time, check if the *single* renewalDate falls within the range
+        // AND is on or after the effective start date.
+        final renewalDateUtc = DateTime.utc(sub.renewalDate.year, sub.renewalDate.month, sub.renewalDate.day);
+        final effectiveStartDateUtc = DateTime.utc(effectiveStartDate.year, effectiveStartDate.month, effectiveStartDate.day);
+
+        if (!renewalDateUtc.isBefore(rangeStartUtc) &&
+            !renewalDateUtc.isAfter(rangeEndUtc) &&
+            !renewalDateUtc.isBefore(effectiveStartDateUtc)) {
           occurrences.add((sub, sub.renewalDate)); // Add tuple
         }
       } else {
-        // Calculate recurring occurrences within the range
-        DateTime currentRenewal = sub.renewalDate;
-        DateTime effectiveStartDate = sub.startDate ?? sub.createdAt; // Use start date or creation date
+        // --- Calculate recurring occurrences within the range ---
+        DateTime currentOccurrence = anchorDate; // Start generating from the anchor date
 
         // Limit iterations to prevent infinite loops (e.g., 100 years)
         int iterations = 0;
         final maxIterations = 12 * 100;
 
-        // Find the first renewal date >= effectiveStartDate
-        while (currentRenewal.isBefore(effectiveStartDate) && iterations < maxIterations) {
-          currentRenewal = _calculateNextBillDate(currentRenewal, sub.billingCycle);
-          iterations++;
-        }
+        // Loop forwards from the anchor date
+        while (iterations < maxIterations) {
+          final currentOccurrenceUtc = DateTime.utc(currentOccurrence.year, currentOccurrence.month, currentOccurrence.day);
 
+          // Stop if the current occurrence is already past the range end
+          if (currentOccurrenceUtc.isAfter(rangeEndUtc)) {
+            break;
+          }
 
-        // Generate renewals and add those within the range [start, rangeEnd]
-        iterations = 0; // Reset iteration count
-        while (currentRenewal.isBefore(rangeEnd.add(const Duration(days: 1))) && iterations < maxIterations) {
-          // Check if the current renewal is within the query range [start, rangeEnd]
-          // and also on or after the effective start date
-          if (!currentRenewal.isBefore(start) && !currentRenewal.isBefore(effectiveStartDate)) {
+          // Check if the current occurrence is within the query range [rangeStartUtc, rangeEndUtc]
+          // (It's already guaranteed to be >= anchorDate by starting there)
+          if (!currentOccurrenceUtc.isBefore(rangeStartUtc)) {
              // Add the original subscription and the specific occurrence date as a tuple
-             occurrences.add((sub, currentRenewal));
+             occurrences.add((sub, currentOccurrence));
           }
-          // Stop if the next renewal would definitely be after the range end
-          if (currentRenewal.isAfter(rangeEnd)) {
-             break;
+
+          // Calculate the next occurrence based on the *current* one and the anchor
+          DateTime nextOccurrence = _calculateNextOccurrenceDate(currentOccurrence, sub.billingCycle, anchorDate);
+
+          // Safety check: ensure next date is after current date to prevent infinite loop
+          if (!nextOccurrence.isAfter(currentOccurrence)) {
+              print("Warning: Next occurrence calculation did not advance for sub ${sub.id}. Anchor: $anchorDate, Current: $currentOccurrence. Breaking loop.");
+              break; // Avoid potential infinite loop
           }
-          currentRenewal = _calculateNextBillDate(currentRenewal, sub.billingCycle);
+
+          currentOccurrence = nextOccurrence;
           iterations++;
         }
       }
@@ -151,9 +163,13 @@ class SubscriptionRepository {
     return occurrences;
   }
 
-  // Helper function to calculate the next billing date based on cycle
-  // NOTE: This is a simplified calculation. Consider edge cases like end-of-month.
-  DateTime _calculateNextBillDate(DateTime currentBillDate, BillingCycle cycle) {
+
+  // Helper function to calculate the next occurrence date based on the previous one,
+  // the billing cycle, and an anchor date (which defines the day/month).
+  DateTime _calculateNextOccurrenceDate(DateTime previousOccurrenceDate, BillingCycle cycle, DateTime anchorDate) {
+    int anchorDay = anchorDate.day;
+    int anchorMonth = anchorDate.month; // Needed for yearly cycle
+
     if (cycle == BillingCycle.monthly) {
       int year = previousOccurrenceDate.year;
       int month = previousOccurrenceDate.month + 1;
