@@ -179,7 +179,7 @@ class SubscriptionRepository {
        // Handle leap years for Feb 29th
        if (month == 2 && day == 29) {
          // If next year is not a leap year, move to Feb 28th
-         if (!DateTime(year, 3, 0).day == 29) { // Check if Feb has 29 days next year
+         if (DateTime(year, 3, 0).day != 29) {
             day = 28;
          }
        }

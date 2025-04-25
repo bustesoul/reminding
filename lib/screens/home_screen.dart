@@ -115,7 +115,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
             calendarStyle: CalendarStyle(
               todayDecoration: BoxDecoration(
-                color: Colors.deepPurple.withOpacity(0.5),
+                color: Colors.deepPurple.withAlpha((0.5 * 255).round()),
                 shape: BoxShape.circle,
               ),
               selectedDecoration: const BoxDecoration(
@@ -160,8 +160,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
              _refreshData();
           }
         },
-        child: const Icon(Icons.add),
         tooltip: 'Add Subscription',
+        child: const Icon(Icons.add),
       ),
     );
   }

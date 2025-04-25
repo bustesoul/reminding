@@ -86,8 +86,6 @@ class _AddEditSubscriptionScreenState extends ConsumerState<AddEditSubscriptionS
         return 'Monthly';
       case BillingCycle.yearly:
         return 'Yearly';
-      default:
-        return '';
     }
   }
 

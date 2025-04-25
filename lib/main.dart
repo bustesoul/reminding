@@ -3,8 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart'; // Import sqflite
-import 'package:path/path.dart'; // Import path
-import 'package:path_provider/path_provider.dart';
 import 'package:intl/date_symbol_data_local.dart'; // Import for date formatting initialization
 
 // Removed Isar import
