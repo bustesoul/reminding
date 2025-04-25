@@ -36,7 +36,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   // Using LinkedHashMap is important for TableCalendar's event loader
-  final LinkedHashMap<DateTime, List<Subscription>> _eventsMap = LinkedHashMap(
+  // The value is now a list of tuples (Subscription, OccurrenceDate)
+  final LinkedHashMap<DateTime, List<(Subscription, DateTime)>> _eventsMap = LinkedHashMap(
     equals: isSameDay,
     hashCode: (key) => key.day * 1000000 + key.month * 10000 + key.year,
   );
@@ -46,13 +47,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // Watch the events provider for the current focused month
     final eventsAsyncValue = ref.watch(subscriptionEventsProvider(_focusedDay));
 
-    // Populate the events map when data is available
-    eventsAsyncValue.whenData((events) {
+    // Populate the events map when data (list of tuples) is available
+    eventsAsyncValue.whenData((eventTuples) {
       _eventsMap.clear();
-      for (final event in events) {
-        final day = DateTime.utc(event.renewalDate.year, event.renewalDate.month, event.renewalDate.day);
+      for (final tuple in eventTuples) {
+        final subscription = tuple.$1; // Access the subscription object
+        final occurrenceDate = tuple.$2; // Access the occurrence date
+        // Use the occurrenceDate for the map key
+        final day = DateTime.utc(occurrenceDate.year, occurrenceDate.month, occurrenceDate.day);
         final existingEvents = _eventsMap[day] ?? [];
-        existingEvents.add(event);
+        existingEvents.add(tuple); // Add the whole tuple to the list for that day
         _eventsMap[day] = existingEvents;
       }
     });
@@ -70,7 +74,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             lastDay: DateTime.utc(2030, 3, 14), // Example end date
             focusedDay: _focusedDay,
             calendarFormat: _calendarFormat,
-            // eventLoader now directly uses the map populated by the FutureProvider's data
+            // eventLoader uses the map; the value is List<(Subscription, DateTime)>
+            // TableCalendar's markerBuilder just needs to know if the list is empty or not.
             eventLoader: (day) => _eventsMap[day] ?? [],
             selectedDayPredicate: (day) {
               // Use `selectedDayPredicate` to determine which day is currently selected.
@@ -124,7 +129,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               titleTextFormatter: (date, locale) => DateFormat.yMMMM(locale).format(date),
             ),
              calendarBuilders: CalendarBuilders( // Add builders for customization
-              markerBuilder: (context, day, events) { // Custom marker for events
+              // markerBuilder receives the list returned by eventLoader for the day
+              markerBuilder: (context, day, events) { // events is List<(Subscription, DateTime)>
                 if (events.isNotEmpty) {
                   return Positioned(
                     right: 1,
@@ -172,7 +178,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
 
   // Widget to build the small marker indicating events on a day
-  Widget _buildEventsMarker(DateTime day, List<Subscription> events) {
+  // The 'events' parameter is now List<(Subscription, DateTime)>
+  Widget _buildEventsMarker(DateTime day, List<(Subscription, DateTime)> events) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       decoration: BoxDecoration(
@@ -200,12 +207,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return const Center(child: Text('Select a day'));
     }
 
-    // Watch the provider for the selected day's subscriptions
-    final subscriptionsAsyncValue = ref.watch(subscriptionsForDayProvider(_selectedDay!));
+    // Watch the provider for the selected day's subscription occurrences (tuples)
+    final occurrencesAsyncValue = ref.watch(subscriptionsForDayProvider(_selectedDay!));
 
-    return subscriptionsAsyncValue.when(
-      data: (subscriptions) {
-        if (subscriptions.isEmpty) {
+    return occurrencesAsyncValue.when(
+      data: (occurrences) { // Now a list of tuples
+        if (occurrences.isEmpty) {
           return Center(
             child: Text(
               'No subscriptions renewing on ${DateFormat.yMd().format(_selectedDay!)}',
@@ -213,13 +220,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           );
         }
         return ListView.builder(
-          itemCount: subscriptions.length,
+          itemCount: occurrences.length,
           itemBuilder: (context, index) {
-            final subscription = subscriptions[index];
+            final tuple = occurrences[index];
+            final subscription = tuple.$1; // Get the original subscription
+            final occurrenceDate = tuple.$2; // Get the specific date for this list item
+
             return SubscriptionListItem(
-              subscription: subscription,
-              onTap: () async { // Added async keyword here
-                // Navigate to edit screen, passing the subscription
+              subscription: subscription, // Pass the original subscription
+              occurrenceDate: occurrenceDate, // Pass the specific occurrence date
+              onTap: () async {
+                // Navigate to edit screen, passing the ORIGINAL subscription
                 // Navigate to edit and wait for result
                 final result = await Navigator.push<bool>(
                   context,

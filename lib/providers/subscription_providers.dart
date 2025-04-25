@@ -3,18 +3,17 @@ import 'package:reminding/models/subscription.dart';
 import 'package:reminding/repositories/subscription_repository.dart';
 // import 'package:table_calendar/table_calendar.dart'; // isSameDay is used in home_screen
 
-// Provider to get subscriptions for a specific day (now FutureProvider)
+// Provider to get subscription occurrences for a specific day (returns FutureProvider of Tuples)
 // Note: This will not automatically update. UI needs to refresh it.
-final subscriptionsForDayProvider = FutureProvider.autoDispose.family<List<Subscription>, DateTime>((ref, day) {
+final subscriptionsForDayProvider = FutureProvider.autoDispose.family<List<(Subscription, DateTime)>, DateTime>((ref, day) {
   final repository = ref.watch(subscriptionRepositoryProvider);
-  // Call the new Future-based method
+  // Call the repository method which now returns tuples
   return repository.getSubscriptionsForDay(day);
 });
 
-// Provider to get subscription renewal dates for the calendar event loader
-// This remains a FutureProvider, implementation detail changes.
+// Provider to get subscription occurrences for the calendar event loader (returns FutureProvider of Tuples)
 // We'll fetch events for a reasonable range around the focused month.
-final subscriptionEventsProvider = FutureProvider.autoDispose.family<List<Subscription>, DateTime>((ref, focusedMonth) {
+final subscriptionEventsProvider = FutureProvider.autoDispose.family<List<(Subscription, DateTime)>, DateTime>((ref, focusedMonth) {
   final repository = ref.watch(subscriptionRepositoryProvider);
   // Fetch for a range (e.g., +/- 1 month) to cover calendar view changes
   final start = DateTime(focusedMonth.year, focusedMonth.month - 1, 1);

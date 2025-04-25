@@ -4,11 +4,13 @@ import 'package:intl/intl.dart';
 
 class SubscriptionListItem extends StatelessWidget {
   final Subscription subscription;
+  final DateTime occurrenceDate; // Add the specific date for this occurrence
   final VoidCallback? onTap; // Optional tap callback for navigation/editing
 
   const SubscriptionListItem({
     super.key,
     required this.subscription,
+    required this.occurrenceDate, // Make it required
     this.onTap,
   });
 
@@ -20,8 +22,10 @@ class SubscriptionListItem extends StatelessWidget {
       ),
       title: Text(subscription.name),
       subtitle: Text(
-        'Renews: ${DateFormat.yMd().format(subscription.renewalDate)}'
+        // Use the occurrenceDate for display
+        'Date: ${DateFormat.yMd().format(occurrenceDate)}'
         '${subscription.price != null ? ' - \$${subscription.price!.toStringAsFixed(2)}' : ''}' // Show price if available
+        // Optionally add cycle info: ' (${subscription.billingCycle.name})'
       ),
       trailing: const Icon(Icons.chevron_right), // Indicate tappable
       onTap: onTap,

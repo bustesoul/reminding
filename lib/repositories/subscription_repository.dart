@@ -21,14 +21,14 @@ class SubscriptionRepository {
     });
   }
 
-  // Get subscription occurrences for a specific day (returns a Future)
-  Future<List<Subscription>> getSubscriptionsForDay(DateTime day) async {
+  // Get subscription occurrences for a specific day (returns a Future of Tuples)
+  Future<List<(Subscription, DateTime)>> getSubscriptionsForDay(DateTime day) async {
     // Fetch all potentially relevant subscriptions first
     // Optimization: Could filter further based on billing cycle and dates if needed
     final allSubsMaps = await _db.query(DatabaseHelper.table);
     final allSubscriptions = allSubsMaps.map((map) => Subscription.fromMap(map)).toList();
 
-    final List<Subscription> occurrences = [];
+    final List<(Subscription, DateTime)> occurrences = []; // Changed list type
     final dayUtc = DateTime.utc(day.year, day.month, day.day);
 
     for (final sub in allSubscriptions) {
@@ -41,7 +41,7 @@ class SubscriptionRepository {
         // Check if the single renewal date matches the target day
         final renewalDayUtc = DateTime.utc(sub.renewalDate.year, sub.renewalDate.month, sub.renewalDate.day);
         if (renewalDayUtc.isAtSameMomentAs(dayUtc)) {
-          occurrences.add(sub);
+          occurrences.add((sub, sub.renewalDate)); // Add tuple
         }
       } else {
         // Calculate recurring occurrences for the target day
@@ -69,8 +69,8 @@ class SubscriptionRepository {
         while (currentRenewal.isBefore(day.add(const Duration(days: 1))) && iterations < maxIterations) {
            final currentRenewalDayUtc = DateTime.utc(currentRenewal.year, currentRenewal.month, currentRenewal.day);
            if (currentRenewalDayUtc.isAtSameMomentAs(dayUtc)) {
-             // Create a temporary instance with the correct renewal date for this occurrence
-             occurrences.add(Subscription.fromMap(sub.toMap()..[DatabaseHelper.columnRenewalDate] = currentRenewal.toIso8601String()));
+             // Add the original subscription and the specific occurrence date as a tuple
+             occurrences.add((sub, currentRenewal));
              break; // Found occurrence for this day, no need to check further for this sub
            }
            // If current renewal is after the target day, stop checking for this sub
@@ -88,14 +88,14 @@ class SubscriptionRepository {
   }
 
 
-  // Get subscription occurrences within a date range (useful for calendar events)
-  Future<List<Subscription>> getSubscriptionsInDateRange(DateTime start, DateTime end) async {
+  // Get subscription occurrences within a date range (returns a Future of Tuples)
+  Future<List<(Subscription, DateTime)>> getSubscriptionsInDateRange(DateTime start, DateTime end) async {
     // Fetch all potentially relevant subscriptions
     // Optimization: Could filter by startDate <= end
     final allSubsMaps = await _db.query(DatabaseHelper.table);
     final allSubscriptions = allSubsMaps.map((map) => Subscription.fromMap(map)).toList();
 
-    final List<Subscription> occurrences = [];
+    final List<(Subscription, DateTime)> occurrences = []; // Changed list type
     final rangeEnd = DateTime.utc(end.year, end.month, end.day, 23, 59, 59); // Ensure end is inclusive
 
     for (final sub in allSubscriptions) {
@@ -110,7 +110,7 @@ class SubscriptionRepository {
         if (sub.renewalDate.isAfter(start.subtract(const Duration(days: 1))) &&
             sub.renewalDate.isBefore(rangeEnd.add(const Duration(days: 1))) &&
             !sub.renewalDate.isBefore(effectiveStartDate)) {
-          occurrences.add(sub);
+          occurrences.add((sub, sub.renewalDate)); // Add tuple
         }
       } else {
         // Calculate recurring occurrences within the range
@@ -134,8 +134,8 @@ class SubscriptionRepository {
           // Check if the current renewal is within the query range [start, rangeEnd]
           // and also on or after the effective start date
           if (!currentRenewal.isBefore(start) && !currentRenewal.isBefore(effectiveStartDate)) {
-             // Create a temporary instance with the correct renewal date for this occurrence
-             occurrences.add(Subscription.fromMap(sub.toMap()..[DatabaseHelper.columnRenewalDate] = currentRenewal.toIso8601String()));
+             // Add the original subscription and the specific occurrence date as a tuple
+             occurrences.add((sub, currentRenewal));
           }
           // Stop if the next renewal would definitely be after the range end
           if (currentRenewal.isAfter(rangeEnd)) {
