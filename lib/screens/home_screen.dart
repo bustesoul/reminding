@@ -198,11 +198,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           calendarBuilders: CalendarBuilders(
             markerBuilder: (context, day, events) {
               if (events.isNotEmpty) {
+                // Determine if the day is in the past (ignoring time)
+                final today = DateTime.now();
+                final todayUtc = DateTime.utc(today.year, today.month, today.day);
+                final dayUtc = DateTime.utc(day.year, day.month, day.day);
+                final bool isPastDay = dayUtc.isBefore(todayUtc);
+
                 return Positioned(
                   right: 1,
                   bottom: 1,
                   child: Container(
-                    decoration: CalendarStyle().markerDecoration,
+                    // Use grey marker for past days, default (orange) for today/future
+                    decoration: CalendarStyle().markerDecoration?.copyWith(
+                      color: isPastDay ? Colors.grey.shade400 : Colors.orange.shade600,
+                    ),
                     width: 7.0,
                     height: 7.0,
                     margin: const EdgeInsets.symmetric(horizontal: 0.3),
@@ -482,12 +491,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
               // Wrap item in a Card for better visual separation
               return Card(
-                 elevation: 1.5, // Subtle elevation
-                 margin: const EdgeInsets.symmetric(vertical: 4.0), // Spacing between cards
-                 child: SubscriptionListItem(
+                 // Determine if the occurrence is in the past
+                 final today = DateTime.now();
+                 final todayUtc = DateTime.utc(today.year, today.month, today.day);
+                 final occurrenceDateUtc = DateTime.utc(occurrenceDate.year, occurrenceDate.month, occurrenceDate.day);
+                 final bool isPastOccurrence = occurrenceDateUtc.isBefore(todayUtc);
+
+                 // Wrap item in a Card for better visual separation
+                 return SubscriptionListItem(
                    subscription: subscription,
                    occurrenceDate: occurrenceDate,
+                   isPast: isPastOccurrence, // Pass the flag
                    onTap: () async {
+                     // Allow tapping even on past items to view details
                      final result = await Navigator.push<bool>(
                        context,
                        MaterialPageRoute(

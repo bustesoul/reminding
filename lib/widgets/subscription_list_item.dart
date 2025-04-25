@@ -4,46 +4,59 @@ import 'package:intl/intl.dart';
 
 class SubscriptionListItem extends StatelessWidget {
   final Subscription subscription;
-  final DateTime occurrenceDate; // Add the specific date for this occurrence
+  final DateTime occurrenceDate; // The specific date for this occurrence
   final VoidCallback? onTap; // Optional tap callback for navigation/editing
+  final bool isPast; // Flag to indicate if the occurrence date is in the past
 
   const SubscriptionListItem({
     super.key,
     required this.subscription,
-    required this.occurrenceDate, // Make it required
+    required this.occurrenceDate,
+    this.isPast = false, // Default to false
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final Color pastColor = Colors.grey.shade500; // Color for past items
+    final Color futureColor = Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black; // Default text color
+
     // Use a Card for better visual separation in lists
     return Card(
-      elevation: 1.5,
-      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0), // Add horizontal margin too
+      elevation: isPast ? 0.5 : 1.5, // Reduce elevation for past items
+      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+      color: isPast ? Colors.grey.shade100 : null, // Slightly grey background for past items
       child: ListTile(
-        leading: CircleAvatar( // Keep the avatar
-          // Optional: Add background color based on category or other property?
-          // backgroundColor: Colors.deepPurple.shade100,
+        leading: CircleAvatar(
+          backgroundColor: isPast ? Colors.grey.shade300 : Theme.of(context).colorScheme.primaryContainer, // Dim avatar background
           child: Text(
             subscription.name.isNotEmpty ? subscription.name.substring(0, 1).toUpperCase() : '?',
-            // style: TextStyle(color: Colors.deepPurple.shade800),
+            style: TextStyle(color: isPast ? pastColor : Theme.of(context).colorScheme.onPrimaryContainer),
           ),
         ),
-        title: Text(subscription.name, style: Theme.of(context).textTheme.titleMedium),
+        title: Text(
+          subscription.name,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: isPast ? pastColor : null, // Dim title color
+                decoration: isPast ? TextDecoration.lineThrough : null, // Add strikethrough
+              ),
+        ),
         subtitle: Text(
-          // Display price more prominently if available
           subscription.price != null
               ? '\$${subscription.price!.toStringAsFixed(2)} / ${_billingCycleShortString(subscription.billingCycle)}'
-              : _billingCycleShortString(subscription.billingCycle), // Just show cycle if no price
-          style: Theme.of(context).textTheme.bodyMedium,
+              : _billingCycleShortString(subscription.billingCycle),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: isPast ? pastColor : null, // Dim subtitle color
+              ),
         ),
-        // Display the specific occurrence date clearly
         trailing: Text(
-          DateFormat.Md().format(occurrenceDate), // Short date format (e.g., 4/25)
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
+          DateFormat.Md().format(occurrenceDate),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: isPast ? pastColor : Colors.grey.shade600, // Dim trailing date color
+              ),
         ),
         onTap: onTap,
-        // TODO: Implement Slidable for actions
+        enabled: !isPast, // Disable tap interaction for past items if desired
       ),
     );
   }
