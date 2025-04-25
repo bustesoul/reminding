@@ -155,38 +155,42 @@ class SubscriptionRepository {
   // NOTE: This is a simplified calculation. Consider edge cases like end-of-month.
   DateTime _calculateNextBillDate(DateTime currentBillDate, BillingCycle cycle) {
     if (cycle == BillingCycle.monthly) {
-      // Basic month addition - might need refinement for specific day handling (e.g., 31st)
-      int year = currentBillDate.year;
-      int month = currentBillDate.month + 1;
-      int day = currentBillDate.day;
-
+      int year = previousOccurrenceDate.year;
+      int month = previousOccurrenceDate.month + 1;
       if (month > 12) {
         month = 1;
         year++;
       }
-      // Check days in next month
-      int daysInNextMonth = DateTime(year, month + 1, 0).day;
-      if (day > daysInNextMonth) {
-        day = daysInNextMonth; // Adjust to last day if original day doesn't exist
-      }
-      return DateTime(year, month, day, currentBillDate.hour, currentBillDate.minute, currentBillDate.second);
+      // Use anchorDay, but adjust if it doesn't exist in the target month
+      int daysInTargetMonth = DateTime(year, month + 1, 0).day;
+      int day = (anchorDay > daysInTargetMonth) ? daysInTargetMonth : anchorDay;
+      // Use time components from anchorDate for consistency
+      return DateTime(year, month, day, anchorDate.hour, anchorDate.minute, anchorDate.second);
 
     } else if (cycle == BillingCycle.yearly) {
-       int year = currentBillDate.year + 1;
-       int month = currentBillDate.month;
-       int day = currentBillDate.day;
-
-       // Handle leap years for Feb 29th
-       if (month == 2 && day == 29) {
-         // If next year is not a leap year, move to Feb 28th
-         if (DateTime(year, 3, 0).day != 29) {
-            day = 28;
+      int year = previousOccurrenceDate.year + 1;
+      // Use anchorMonth and anchorDay
+      int month = anchorMonth;
+      int day = anchorDay;
+      // Handle leap year case for Feb 29th anchor
+      if (month == 2 && day == 29) {
+        // Check if target year is a leap year (Feb has 29 days)
+        if (DateTime(year, 3, 0).day != 29) {
+          day = 28; // Not a leap year, adjust to Feb 28th
+        }
+      } else {
+         // Check if anchorDay exists in anchorMonth for the target year (e.g., Feb 30/31 doesn't exist)
+         int daysInTargetMonth = DateTime(year, month + 1, 0).day;
+         if (day > daysInTargetMonth) {
+             day = daysInTargetMonth; // Adjust to last day of month
          }
-       }
-       return DateTime(year, month, day, currentBillDate.hour, currentBillDate.minute, currentBillDate.second);
+      }
+      // Use time components from anchorDate
+      return DateTime(year, month, day, anchorDate.hour, anchorDate.minute, anchorDate.second);
     } else {
-      // Should not happen for recurring calculation, but return current date as fallback
-      return currentBillDate;
+      // OneTime: Should not be called for this cycle in the recurring logic.
+      // Return the same date to potentially break loops if called incorrectly.
+      return previousOccurrenceDate;
     }
   }
 
