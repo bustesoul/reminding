@@ -270,10 +270,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 final daysInNewMonth = DateTime(newYear, currentMonth + 1, 0).day;
                 final newDay = (currentDay > daysInNewMonth) ? daysInNewMonth : currentDay;
                 _focusedDay = DateTime.utc(newYear, currentMonth, newDay);
+                // Also update selected day if one is chosen
+                if (_selectedDay != null) {
+                  _selectedDay = DateTime.utc(newYear, currentMonth, newDay);
+                  // Refresh the list for the newly selected day in the new year
+                  ref.invalidate(subscriptionsForDayProvider(_selectedDay!));
+                }
                 // Refresh events for the new focused day/month/year
                 ref.invalidate(subscriptionEventsProvider(_focusedDay));
-              }
-            },
+              }); // End setState
+            }
+          },
             // underline: Container(), // Removed by DropdownButtonHideUnderline
             style: Theme.of(context).textTheme.titleMedium, // Match month style
           ),
