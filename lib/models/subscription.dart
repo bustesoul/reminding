@@ -121,14 +121,10 @@ class Subscription {
           (renewalAnchorMonth == null || renewalAnchorMonth! < 1 || renewalAnchorMonth! > 12)) {
         throw ArgumentError('renewalAnchorMonth must be provided (1-12) for yearly+ billing cycles.');
       }
-       // Additional validation for day/month combinations (e.g., day 31 in month 2)
-       if (renewalAnchorMonth != null && renewalAnchorDay != null) {
-           // Use a non-leap year for general validation, leap year handled in calculation
-           int daysInMonthCheck = _daysInMonth(2023, renewalAnchorMonth!);
-           if (renewalAnchorDay! > daysInMonthCheck) {
-               throw ArgumentError('Invalid day ($renewalAnchorDay) for month ($renewalAnchorMonth).');
-           }
-       }
+      // Removed the specific day/month combination check here.
+      // Basic range checks (day 1-31, month 1-12) are sufficient.
+      // The date calculation logic (`_addYears`, `_addMonths`) handles clamping
+      // and leap year adjustments correctly when generating occurrences.
     }
     // --- End Validation ---
 
