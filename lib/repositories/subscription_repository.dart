@@ -28,70 +28,44 @@ class SubscriptionRepository {
     final allSubsMaps = await _db.query(DatabaseHelper.table);
     final allSubscriptions = allSubsMaps.map((map) => Subscription.fromMap(map)).toList();
 
-    final List<(Subscription, DateTime)> occurrences = []; // Changed list type
+    final List<(Subscription, DateTime)> occurrences = [];
     final dayUtc = DateTime.utc(day.year, day.month, day.day);
 
     for (final sub in allSubscriptions) {
-      // Skip if subscription starts after the target day
-      if (sub.startDate != null && sub.startDate!.isAfter(day)) {
-        continue;
+      if (sub.billingCycle == BillingCycle.oneTime) {
+        // One-time subscriptions don't generate recurring events.
+        // We might need a separate way to handle/display them if needed on a specific date,
+        // but they don't fit the "renewal" model.
+        // Perhaps check if sub.startDate matches dayUtc?
+        // final startDateUtc = DateTime.utc(sub.startDate.year, sub.startDate.month, sub.startDate.day);
+        // if (startDateUtc.isAtSameMomentAs(dayUtc)) {
+        //    occurrences.add((sub, sub.startDate));
+        // }
+        continue; // Skip one-time subs for renewal checks
       }
 
-      if (sub.billingCycle == BillingCycle.oneTime) {
-        // Check if the single renewal date matches the target day
-        final renewalDayUtc = DateTime.utc(sub.renewalDate.year, sub.renewalDate.month, sub.renewalDate.day);
-        if (renewalDayUtc.isAtSameMomentAs(dayUtc)) {
-          occurrences.add((sub, sub.renewalDate)); // Add tuple
+      // Use the model's logic to get occurrences around the target day
+      // Generate occurrences up to the day after the target day to be safe.
+      final searchEndDate = dayUtc.add(const Duration(days: 1));
+      final subOccurrences = sub.getRenewalOccurrences(maxDate: searchEndDate);
+
+      // Check if any generated occurrence falls exactly on the target day
+      for (final occDate in subOccurrences) {
+        final occDateUtc = DateTime.utc(occDate.year, occDate.month, occDate.day);
+        if (occDateUtc.isAtSameMomentAs(dayUtc)) {
+          occurrences.add((sub, occDate));
+          // Found the occurrence for this day, move to the next subscription
+          break;
         }
-      } else {
-        // Calculate recurring occurrences for the target day
-        DateTime currentRenewal = sub.renewalDate;
-        DateTime effectiveStartDate = sub.startDate ?? sub.createdAt; // Use start date or creation date
-
-        // Determine the anchor date for recurrence calculation
-        final anchorDate = effectiveStartDate;
-
-        // Start generating occurrences from the anchor date
-        DateTime currentOccurrence = anchorDate;
-
-        // Generate renewals and check if they fall on the target day
-        // Limit iterations to prevent infinite loops in edge cases (e.g., 100 years)
-        int iterations = 0;
-        final maxIterations = 12 * 100; // Max 100 years of iterations
-
-        // Loop forwards from the anchor date
-        while (iterations < maxIterations) {
-           final currentOccurrenceUtc = DateTime.utc(currentOccurrence.year, currentOccurrence.month, currentOccurrence.day);
-
-           // Stop if the current occurrence is already past the target day
-           if (currentOccurrenceUtc.isAfter(dayUtc)) {
-              break;
-           }
-
-           // Check if the current occurrence matches the target day
-           if (currentOccurrenceUtc.isAtSameMomentAs(dayUtc)) {
-             // Add the original subscription and the specific occurrence date as a tuple
-             occurrences.add((sub, currentOccurrence)); // Use currentOccurrence
-             break; // Found occurrence for this day, no need to check further for this sub
-           }
-
-           // Calculate the next occurrence based on the *current* one and the anchor
-           DateTime nextOccurrence = _calculateNextOccurrenceDate(currentOccurrence, sub.billingCycle, anchorDate);
-
-           // Safety check: ensure next date is after current date
-           if (!nextOccurrence.isAfter(currentOccurrence)) {
-               print("Warning: Next occurrence calculation did not advance in getSubscriptionsForDay for sub ${sub.id}. Anchor: $anchorDate, Current: $currentOccurrence. Breaking loop.");
-               break;
-           }
-
-           currentOccurrence = nextOccurrence;
-           iterations++;
+        // Optimization: If we've passed the target day, stop checking for this sub
+        if (occDateUtc.isAfter(dayUtc)) {
+            break;
         }
       }
     }
     // Sort occurrences by the occurrence date (the DateTime part of the tuple)
     occurrences.sort((a, b) => a.$2.compareTo(b.$2));
-    return occurrences;
+    return occurrences; // Return list of (Subscription, OccurrenceDate) tuples
   }
 
 
@@ -102,120 +76,37 @@ class SubscriptionRepository {
     final allSubsMaps = await _db.query(DatabaseHelper.table);
     final allSubscriptions = allSubsMaps.map((map) => Subscription.fromMap(map)).toList();
 
-    final List<(Subscription, DateTime)> occurrences = []; // Changed list type
-    final rangeStartUtc = DateTime.utc(start.year, start.month, start.day); // Use UTC for comparison start
-    final rangeEndUtc = DateTime.utc(end.year, end.month, end.day, 23, 59, 59); // Ensure end is inclusive
+    final List<(Subscription, DateTime)> occurrences = [];
+    // Ensure range dates are UTC date part only for comparison
+    final rangeStartUtc = DateTime.utc(start.year, start.month, start.day);
+    final rangeEndUtc = DateTime.utc(end.year, end.month, end.day); // End of the day is handled by isBefore/isAfter logic
 
     for (final sub in allSubscriptions) {
-      // Determine the effective start date (anchor for recurrence)
-      final effectiveStartDate = sub.startDate ?? sub.createdAt;
-      final anchorDate = effectiveStartDate; // Use effectiveStartDate to determine day/month
+       if (sub.billingCycle == BillingCycle.oneTime) {
+         // Skip one-time subs for renewal checks in range
+         continue;
+       }
 
-      // Skip if the subscription's anchor date is already after the range ends
-      if (DateTime.utc(anchorDate.year, anchorDate.month, anchorDate.day).isAfter(rangeEndUtc)) {
-        continue;
-      }
+       // Use the model's logic to get occurrences up to the end of the range
+       final subOccurrences = sub.getRenewalOccurrences(maxDate: rangeEndUtc);
 
-      if (sub.billingCycle == BillingCycle.oneTime) {
-        // For one-time, check if the *single* renewalDate falls within the range
-        // AND is on or after the effective start date.
-        final renewalDateUtc = DateTime.utc(sub.renewalDate.year, sub.renewalDate.month, sub.renewalDate.day);
-        final effectiveStartDateUtc = DateTime.utc(effectiveStartDate.year, effectiveStartDate.month, effectiveStartDate.day);
-
-        if (!renewalDateUtc.isBefore(rangeStartUtc) &&
-            !renewalDateUtc.isAfter(rangeEndUtc) &&
-            !renewalDateUtc.isBefore(effectiveStartDateUtc)) {
-          occurrences.add((sub, sub.renewalDate)); // Add tuple
-        }
-      } else {
-        // --- Calculate recurring occurrences within the range ---
-        DateTime currentOccurrence = anchorDate; // Start generating from the anchor date
-
-        // Limit iterations to prevent infinite loops (e.g., 100 years)
-        int iterations = 0;
-        final maxIterations = 12 * 100;
-
-        // Loop forwards from the anchor date
-        while (iterations < maxIterations) {
-          final currentOccurrenceUtc = DateTime.utc(currentOccurrence.year, currentOccurrence.month, currentOccurrence.day);
-
-          // Stop if the current occurrence is already past the range end
-          if (currentOccurrenceUtc.isAfter(rangeEndUtc)) {
-            break;
-          }
-
-          // Check if the current occurrence is within the query range [rangeStartUtc, rangeEndUtc]
-          // (It's already guaranteed to be >= anchorDate by starting there)
-          if (!currentOccurrenceUtc.isBefore(rangeStartUtc)) {
-             // Add the original subscription and the specific occurrence date as a tuple
-             occurrences.add((sub, currentOccurrence));
-          }
-
-          // Calculate the next occurrence based on the *current* one and the anchor
-          DateTime nextOccurrence = _calculateNextOccurrenceDate(currentOccurrence, sub.billingCycle, anchorDate);
-
-          // Safety check: ensure next date is after current date to prevent infinite loop
-          if (!nextOccurrence.isAfter(currentOccurrence)) {
-              print("Warning: Next occurrence calculation did not advance for sub ${sub.id}. Anchor: $anchorDate, Current: $currentOccurrence. Breaking loop.");
-              break; // Avoid potential infinite loop
-          }
-
-          currentOccurrence = nextOccurrence;
-          iterations++;
-        }
-      }
-    }
-     // Sort occurrences by the occurrence date (the DateTime part of the tuple)
-    occurrences.sort((a, b) => a.$2.compareTo(b.$2));
-    return occurrences;
-  }
-
-
-  // Helper function to calculate the next occurrence date based on the previous one,
-  // the billing cycle, and an anchor date (which defines the day/month).
-  DateTime _calculateNextOccurrenceDate(DateTime previousOccurrenceDate, BillingCycle cycle, DateTime anchorDate) {
-    int anchorDay = anchorDate.day;
-    int anchorMonth = anchorDate.month; // Needed for yearly cycle
-
-    if (cycle == BillingCycle.monthly) {
-      int year = previousOccurrenceDate.year;
-      int month = previousOccurrenceDate.month + 1;
-      if (month > 12) {
-        month = 1;
-        year++;
-      }
-      // Use anchorDay, but adjust if it doesn't exist in the target month
-      int daysInTargetMonth = DateTime(year, month + 1, 0).day;
-      int day = (anchorDay > daysInTargetMonth) ? daysInTargetMonth : anchorDay;
-      // Use time components from anchorDate for consistency
-      return DateTime(year, month, day, anchorDate.hour, anchorDate.minute, anchorDate.second);
-
-    } else if (cycle == BillingCycle.yearly) {
-      int year = previousOccurrenceDate.year + 1;
-      // Use anchorMonth and anchorDay
-      int month = anchorMonth;
-      int day = anchorDay;
-      // Handle leap year case for Feb 29th anchor
-      if (month == 2 && day == 29) {
-        // Check if target year is a leap year (Feb has 29 days)
-        if (DateTime(year, 3, 0).day != 29) {
-          day = 28; // Not a leap year, adjust to Feb 28th
-        }
-      } else {
-         // Check if anchorDay exists in anchorMonth for the target year (e.g., Feb 30/31 doesn't exist)
-         int daysInTargetMonth = DateTime(year, month + 1, 0).day;
-         if (day > daysInTargetMonth) {
-             day = daysInTargetMonth; // Adjust to last day of month
+       // Filter occurrences to include only those within the specified range [start, end]
+       for (final occDate in subOccurrences) {
+         final occDateUtc = DateTime.utc(occDate.year, occDate.month, occDate.day);
+         // Check if the occurrence date is on or after the start date
+         // AND on or before the end date.
+         if (!occDateUtc.isBefore(rangeStartUtc) && !occDateUtc.isAfter(rangeEndUtc)) {
+           occurrences.add((sub, occDate));
          }
-      }
-      // Use time components from anchorDate
-      return DateTime(year, month, day, anchorDate.hour, anchorDate.minute, anchorDate.second);
-    } else {
-      // OneTime: Should not be called for this cycle in the recurring logic.
-      // Return the same date to potentially break loops if called incorrectly.
-      return previousOccurrenceDate;
+       }
     }
+    // Sort occurrences by the occurrence date (the DateTime part of the tuple)
+    occurrences.sort((a, b) => a.$2.compareTo(b.$2));
+    return occurrences; // Return list of (Subscription, OccurrenceDate) tuples
   }
+
+  // Helper function _calculateNextOccurrenceDate removed - logic moved to Subscription model
+
 
   // Add or update a subscription
   Future<int> saveSubscription(Subscription subscription) async {
