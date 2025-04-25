@@ -11,11 +11,11 @@ import 'package:reminding/providers/subscription_providers.dart';
 import 'package:reminding/widgets/subscription_list_item.dart';
 import 'add_edit_subscription_screen.dart'; // Import the new screen
 
-// Helper function to get events for a specific day from the list of all events
-List<Subscription> _getEventsForDay(DateTime day, List<Subscription>? allEvents) {
-  if (allEvents == null) return [];
-  return allEvents.where((event) => isSameDay(event.renewalDate, day)).toList();
-}
+// Helper function to get events for a specific day from the list of all events (No longer needed with new map structure)
+// List<Subscription> _getEventsForDay(DateTime day, List<Subscription>? allEvents) {
+//   if (allEvents == null) return [];
+//   return allEvents.where((event) => isSameDay(event.renewalDate, day)).toList();
+// }
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
