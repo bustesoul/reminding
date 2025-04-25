@@ -71,14 +71,20 @@ class SubscriptionRepository {
            // Check if the current occurrence matches the target day
            if (currentOccurrenceUtc.isAtSameMomentAs(dayUtc)) {
              // Add the original subscription and the specific occurrence date as a tuple
-             occurrences.add((sub, currentRenewal));
+             occurrences.add((sub, currentOccurrence)); // Use currentOccurrence
              break; // Found occurrence for this day, no need to check further for this sub
            }
-           // If current renewal is after the target day, stop checking for this sub
-           if (currentRenewal.isAfter(day)) {
-              break;
+
+           // Calculate the next occurrence based on the *current* one and the anchor
+           DateTime nextOccurrence = _calculateNextOccurrenceDate(currentOccurrence, sub.billingCycle, anchorDate);
+
+           // Safety check: ensure next date is after current date
+           if (!nextOccurrence.isAfter(currentOccurrence)) {
+               print("Warning: Next occurrence calculation did not advance in getSubscriptionsForDay for sub ${sub.id}. Anchor: $anchorDate, Current: $currentOccurrence. Breaking loop.");
+               break;
            }
-           currentRenewal = _calculateNextBillDate(currentRenewal, sub.billingCycle);
+
+           currentOccurrence = nextOccurrence;
            iterations++;
         }
       }
