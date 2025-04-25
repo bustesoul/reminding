@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
-import 'dart:convert';
 import 'package:intl/intl.dart'; // For date formatting and potential future use
-import 'package:uuid/uuid.dart';
 import 'package:reminding/repositories/database_helper.dart'; // Import for column names
 
 // Enum to represent the billing cycle
